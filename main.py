@@ -171,10 +171,11 @@ class JobScraper:
       profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
       if profiles:
          profile_path = profiles[0]
-         print(f"Using real Firefox profile: {profile_path}")
+         print(f"Using real Firefox profile: {profile_path}", "\n")
          firefox_options.profile = profile_path  # Use proper Selenium profile assignment
       else:
-         print("WARNING: No Firefox profile found")
+         # TODO: Default to random profile or default profile if one is not found
+         print("WARNING: No Firefox profile found", "\n")
       
       # CRITICAL: Disable webdriver detection
       firefox_options.set_preference("dom.webdriver.enabled", False)
@@ -569,17 +570,20 @@ def normalize_pay_rate_csv(csv_file_path):
 
 def main():
    parser = argparse.ArgumentParser(description='Scrape job information from links')
-   parser.add_argument('input_csv', help='Input CSV file with job links')
+   input_csv = parser.add_argument('input_csv', help='Input CSV file with job links')
    parser.add_argument('output_csv', help='Output CSV file for job information')
    parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
    
    args = parser.parse_args()
    
+   print(f"\n{'='*50}") # Divider
+
    # Read and deduplicate links
-   print("Reading job links...")
+   print(f"\nParsing job links from {args.input_csv}...\n\n")
    links = read_job_links(args.input_csv)
    unique_links = remove_duplicate_links(links)
    print(f"Found {len(unique_links)} unique job links")
+   print(f"\n{'='*50}", "\n") # Divider
    
    # Initialize scraper
    scraper = JobScraper(headless=args.headless, signed_in = False)
