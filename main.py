@@ -198,7 +198,7 @@ class JobScraper:
       """Try multiple XPaths until one works"""
       for i, xpath in enumerate(xpaths):
          try:
-               time.sleep(0.5)  # Shorter delay between attempts
+               time.sleep(0.1)  # Shorter delay between attempts
                element = self.driver.find_element(By.XPATH, xpath)
                text = element.text.strip()
                if text:  # Only return if we actually got text
@@ -220,14 +220,13 @@ class JobScraper:
          # Keep the webdriver evasion
          self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
          
-         # Navigate to page
+         # Navigate to URL
          self.driver.get(url)
-         time.sleep(2)  # Wait for page to load
-         self.human_delay()
          
-         # Random scrolling before scraping
-         self.human_scroll()
-         self.human_delay()
+         # Wait for page to be fully loaded
+         WebDriverWait(self.driver, 10).until(
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
+         )
          
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
@@ -268,8 +267,7 @@ class JobScraper:
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong"
                ]
          elif 'indeed.com' in url:
-            # TODO:
-            # Indeed XPATHS (you may need to adjust these)
+            # TODO: Indeed XPATHS (these need to be adjusted, both the actual XPaths but also they need to be adjusted to work with the new array input args. for the function 'get_element_text_from_xpaths')
             job_title_xpath = "//h1[@class='jobsearch-JobInfoHeader-title']"
             employer_xpath = "//div[contains(@class, 'jobsearch-InlineCompanyRating')]//a"
             location_xpath = "//div[contains(@class, 'jobsearch-JobInfoHeader-subtitle')]//div[contains(@class, 'location')]"
@@ -293,6 +291,10 @@ class JobScraper:
          print(f"  Employer: {job_info['Employer']}")
          print(f"  Location: {job_info['Location']}")
          print(f"  Pay Rate: {job_info['Pay Rate']}")
+         
+         # Random scrolling after scraping to make it seem less suspicious
+         self.human_scroll()
+         self.human_delay()
          
          return job_info
          
@@ -324,7 +326,13 @@ class JobScraper:
 
 # START - Job Listing Preparation
 def read_job_links(csv_file_path):
-   """Read job links from CSV file"""
+   """
+      Purpose: Read job links from CSV file
+      Input:
+         csv_file_path, the string file path to the CSV file containing the job listing URLs
+      Output:
+         An array of job listing URLs
+   """
    job_links = []
    try:
       with open(csv_file_path, 'r', newline='', encoding='utf-8') as file:
@@ -338,7 +346,13 @@ def read_job_links(csv_file_path):
       return []
 
 def remove_duplicate_links(links):
-   """Remove duplicate links while preserving order"""
+   """
+      Purpose: Remove duplicate links while preserving order
+      Input:
+         links, an array of links
+      Output:
+         unique_links, an array of unique links
+   """
    seen = set()
    unique_links = []
    for link in links:
@@ -346,6 +360,49 @@ def remove_duplicate_links(links):
          seen.add(link)
          unique_links.append(link)
    return unique_links
+
+def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
+   """
+      Purpose: Sorts the links in the CSV file input by their domain alphabetically. This is so that the job scraper can handle different platforms such as LinkedIn and Indeed separately
+      Input:
+         csv_file_path, the string file path to the CSV file containing the job listing URLs
+         ascending_alphabetically, boolean used to dictate if it should be sorted A-Z (default, True), or Z-A (False)
+      Output:
+         An array of job listing URLs sorted alphabetically
+   """
+   try:
+      # Read job links from CSV file
+      job_links = read_job_links(csv_file_path)
+      
+      # Remove duplicates while preserving order initially
+      unique_links = remove_duplicate_links(job_links)
+      
+      # Extract domain from each URL and create tuples of (domain, url)
+      domain_url_pairs = []
+      for url in unique_links:
+         try:
+            # Parse the URL to extract the domain
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+            # Remove 'www.' prefix if present for consistent sorting
+            if domain.startswith('www.'):
+               domain = domain[4:]
+            domain_url_pairs.append((domain, url))
+         except Exception:
+            # If URL parsing fails, use the original URL as domain
+            domain_url_pairs.append(('', url))
+      
+      # Sort by domain
+      sorted_pairs = sorted(domain_url_pairs, key=lambda x: x[0], reverse=not ascending_alphabetically)
+      
+      # Extract just the URLs in sorted order
+      sorted_links = [url for domain, url in sorted_pairs]
+      
+      return sorted_links
+      
+   except Exception as e:
+      print(f"Error sorting job links by domain: {e}")
+      return []
 # STOP - Job Listing Preparation
 
 
@@ -382,43 +439,47 @@ def main():
          failed_links = []
          
          for i, link in enumerate(unique_links, 1):
-               print(f"\nProcessing link {i}/{len(unique_links)}")
+            print(f"\n{'='*50}") # Divider
+            print(f"\nProcessing link {i}/{len(unique_links)}")
+            
+            # Scrape the job info
+            job_info = scraper.scrape_job_info(link)
+            
+            if job_info:
+               writer.writerow(job_info)
+               csvfile.flush()  # Ensure data is written immediately
+               successful_scrapes += 1
+               print(f"✓ Successfully scraped and saved")
+            else:
+               failed_links.append(link)
+               print(f"✗ Failed to scrape")
                
-               job_info = scraper.scrape_job_info(link)
-               
-               if job_info:
-                  writer.writerow(job_info)
-                  csvfile.flush()  # Ensure data is written immediately
-                  successful_scrapes += 1
-                  print(f"✓ Successfully scraped and saved")
-               else:
-                  failed_links.append(link)
-                  print(f"✗ Failed to scrape")
-                  
-                  # Pause on failure for user input
-                  print("Press Enter to continue to next job, or Ctrl+C to exit...")
-                  try:
-                     input()
-                  except KeyboardInterrupt:
-                     print("\nUser interrupted. Saving progress...")
-                     break
-               
-               # Random delay between requests to avoid being blocked
-               time.sleep(random.uniform(2, 4))
+               # Pause on failure for user input
+               print("Press Enter to continue to next job, or Ctrl+C to exit...")
+               try:
+                  input()
+               except KeyboardInterrupt:
+                  print("\nUser interrupted. Saving progress...")
+                  break
+            
+            # Random delay between requests to avoid being blocked
+            time.sleep(random.uniform(2, 4))
       
-      # Summary
-      print(f"\n{'='*50}")
+      # Summary after scraping is done 
+      print(f"\n{'='*50}") # Divider
       print(f"Scraping Complete!")
       print(f"Successful: {successful_scrapes}")
       print(f"Failed: {len(failed_links)}")
       print(f"Output saved to: {args.output_csv}")
       
+      # Show any links that failed to be scraped
       if failed_links:
          print(f"\nFailed links:")
          for link in failed_links:
                print(f"  - {link}")
    
    except Exception as e:
+      print(f"\n{'='*50}") # Divider
       print(f"Unexpected error: {e}")
       print("Press Enter to exit...")
       input()

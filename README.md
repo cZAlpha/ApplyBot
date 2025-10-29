@@ -1,6 +1,23 @@
 # ApplyBot
 A bot to automatically apply to job postings. An attempt to combat the insanely stupid job market using the shotgun method.
 <br><br>
+Made for use with Firefox.
+<br>
+Made with love.
+<br><br>
+
+# Todo
+- Set up a config file that can be changed by the user that will never be committed to Github (other than the initial template one) that contains information like login info., and general settings such as speed and level of anti-bot countermeasures, and a file path to the resume.
+- Reinforce anti-bot countermeasures.
+  - Find a way to bypass Cloudflare anti-bot protection for Indeed
+  - Find a way to bypass LinkedIn's captcha on login to make it automatic
+- Automate application process for easy apply on LinkedIn and Indeed.
+- Automate application process for Workday websites as much as possible.
+  - This will involve account creation, and tracking of login information. This should be done in a file outside of this project so that login information is not sent to Github, likely in a CSV file on the desktop, or wherever and whose file path will be set in a config.
+- Integrate generative AI using Ollama to adjust resume for specific job postings to ensure highest likelihood of bypassing ATS.
+- Add ability for this program to find jobs based on inputted job titles in config file, location, and distance from location as well as other applicable information such as: pay rate, experience level, etc. (this is highly platform dependant)/
+- More that I haven't thought of yet.
+<br><br>
 
 ## Note From Author
 
@@ -18,10 +35,13 @@ Its probably mildly important but frankly I do not care, if you see this and fig
 
 # Sample Usage
 
-Once you have found a bunch of job listings you'd like to scrape the information from, put it in a spreadsheet of your choosing, ensuring that all listing URLs are on different lines. Then export that as a CSV file. Below, this is called 'jobs.csv'. You can then designate the name for the output file, below this is called 'output.csv'.
+Once you have found a bunch of job listings you'd like to scrape the information from, put it in a spreadsheet of your choosing, ensuring that all listing URLs are on different lines. Then export that as a CSV file. Below, this is called 'input.csv'. You can then designate the name for the output file, below this is called 'output.csv'.
+<br>
+The process of sourcing job listing URLs will eventually be automated.
 ```
-python main.py jobs.csv output.csv
+python main.py input.csv output.csv
 ```
+<br><br>
 
 # Sample Output
 ```
@@ -60,3 +80,7 @@ Failed links:
   - https://www.linkedin.com/jobs/view/4332016692/?eBP=CwEAAAGaKIvhSk-ziBRlUPKA56C-O87xlUqNy0MFmKHuBcCo4jr5Fg047M65UCrQlqtzhJIR3VzGmMW7qthPXqGhlJwlgt-0hePQZuGKb7WdYdDg-LGAj8j5gxv5SEqt3ec6XdSNVgOHSZDyqLTDFvpLj05X20ks0PMZ3VfTjyVVaFnMYPBc3wsTJYE7wbnYEbK4cPW7aOO7qK_XFwtLISy1PUF84V6QGyhryzTkbkDL5KsP9_P86J0pAoMui-48E3bVh4MN2Jo_RinqPzmSiG6mQRplr1_lmyQk_5ihlONZyyqOZZNPxXgG6M3WsFvCfQsDA0HYpUlS0eaNg-_Sjq6smoYwSIFxYhCrxvKF7iZo9KShixPyURyq3ETK5wLr5KC8bit1sVw_798QY7oCdUV1sOQrzVI8ClBY1IZc5oIKFrRvoPcny4mMkJkIm7xJmQkQNUYXfyi3qAunHgn7945Hz9mkLMMdA-W06wcatfFKLZRod3488YhqVNLR4mbgT_pLt0wotfSyorLr5G8&lici=gznxmE0d7BU4A7rZuiApAA%3D%3D
   - https://www.linkedin.com/jobs/view/4332450147/?eBP=NOT_ELIGIBLE_FOR_CHARGING&lici=gheChUzG%2B1T%2FK5oZM%2FeaLw%3D%3D
 ```
+
+<br><br>
+
+# Good Luck!
