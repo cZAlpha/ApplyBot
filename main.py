@@ -1,4 +1,5 @@
 import csv
+import os
 import argparse
 from urllib.parse import urlparse
 import sys
@@ -16,12 +17,14 @@ import math
 import time
 import re
 import pandas as pd
+import json
+import glob
 
 
 
 class JobScraper:
-   def __init__(self, headless=False, signed_in=False):
-      self.signed_in = signed_in
+   def __init__(self, config=None, headless=False):
+      self.config = config
       self.user_agents = [
          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0",
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0", 
@@ -30,6 +33,10 @@ class JobScraper:
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
       ]
       self.setup_driver()
+      
+      # Statistical tracking variables
+      self.critical_element_scrape_fails = 0 # These indicate that XPaths MUST be changed to adjust for differing situations
+      self.non_critical_element_scrape_fails = 0 # These indicate, if higher than should be expected, that XPaths likely need to be adjusted
    
    # Old version
    # def setup_driver(self, headless):
@@ -171,10 +178,11 @@ class JobScraper:
       profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
       if profiles:
          profile_path = profiles[0]
-         print(f"Using real Firefox profile: {profile_path}", "\n")
+         print("🕒 Opening browser...", "\n")
+         print(f"    Using Firefox profile: {profile_path}", "\n")
          firefox_options.profile = profile_path  # Use proper Selenium profile assignment
       else:
-         # TODO: Default to random profile or default profile if one is not found
+         # TODO IMPORTANT: Default to random profile or default profile if one is not found
          print("WARNING: No Firefox profile found", "\n")
       
       # CRITICAL: Disable webdriver detection
@@ -190,29 +198,33 @@ class JobScraper:
          # Nuclear option for evasion
          self.driver.execute_script("""
                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-               delete navigator.__proto__.webdriver;
-         """)
+               delete navigator.__proto__.webdriver;""")
          
       except WebDriverException as e:
-         print(f"Error setting up Firefox driver: {e}")
+         print(f"🚫 Error setting up Firefox driver: {e}")
          raise
    
-   def get_element_text_from_xpaths(self, xpaths, default="?", critical=False):
+   def get_element_text_from_xpaths(self, element_name, xpaths, default="?", critical=False):
       """Try multiple XPaths until one works"""
       for i, xpath in enumerate(xpaths):
          try:
-               time.sleep(0.1)  # Shorter delay between attempts
+               time.sleep(0.1)  # Short delay between attempts
                element = self.driver.find_element(By.XPATH, xpath)
                text = element.text.strip()
                if text:  # Only return if we actually got text
-                  print(f"  Found with XPath #{i+1}: {xpath}")
+                  print(f"  {element_name} was found with XPath #{i+1}: {xpath}")
                   return text
          except NoSuchElementException:
                continue  # Try next XPath
       
       # If we get here, none of the XPaths worked
       if critical:
-         raise Exception(f"CRITICAL: Could not find element with any XPath: {xpaths}")
+         self.critical_element_scrape_fails += 1
+         print("\n")
+         raise Exception(f"CRITICAL: Could not find {element_name} with any XPath from this list: {xpaths}")
+      
+      # If we get here, nothing was found for a non-critical element
+      self.non_critical_element_scrape_fails += 1
       return default
    
    def scrape_job_info(self, url):
@@ -231,43 +243,32 @@ class JobScraper:
             lambda driver: driver.execute_script("return document.readyState") == "complete"
          )
          
+         time.sleep(1) # Give it an extra second
+         
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
-            # NOTE: X Paths are different when you're signed in due to LinkedIn's webdev team being a bit special, hence the need for tracking this
             # Arrays of XPaths for each field
-            if not self.signed_in: 
                job_title_xpaths = [
                   "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
-                  ""
-               ]
-               employer_xpaths = [
-                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
-                  ""
-               ]
-               location_xpaths = [
-                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
-                  ""
-               ]
-               pay_rate_xpaths = [
-                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
-                  ""
-               ]
-            else:
-               job_title_xpaths = [
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1"
                ]
                employer_xpaths = [
+                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a"
                ]
                location_xpaths = [
+                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]"
                ]
                pay_rate_xpaths = [
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong"
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong"
                ]
          elif 'indeed.com' in url:
             # TODO: Indeed XPATHS (these need to be adjusted, both the actual XPaths but also they need to be adjusted to work with the new array input args. for the function 'get_element_text_from_xpaths')
@@ -281,10 +282,10 @@ class JobScraper:
          
          # Scrape information with error handling
          job_info = {
-            'Job Title': self.get_element_text_from_xpaths(job_title_xpaths, critical=True),
-            'Employer': self.get_element_text_from_xpaths(employer_xpaths, critical=True),
-            'Location': self.get_element_text_from_xpaths(location_xpaths),
-            'Pay Rate': self.get_element_text_from_xpaths(pay_rate_xpaths),
+            'Job Title': self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True),
+            'Employer': self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True),
+            'Location': self.get_element_text_from_xpaths("Location", location_xpaths),
+            'Pay Rate': self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths),
             'Job Ad': url,
             'Date Found': datetime.now().strftime("%m/%d/%Y")
          }
@@ -305,20 +306,74 @@ class JobScraper:
          print(f"Timeout loading page: {url}")
          return None
       except Exception as e:
-         print(f"Error scraping {url}: {e}")
+         print(f"🚫 Error scraping {url}: {e}")
          return None
    
    def linkedin_login(self):
-      """Manual login - just open LinkedIn and wait"""
-      print("MANUAL LOGIN REQUIRED:")
-      print("1. A Firefox window will open")
-      print("2. Sign in to LinkedIn manually")
-      print("3. Come back here and press Enter")
+      print(f"\n{'='*50}", "\n") # Divider
+      print("🕒 Navigating to 'https://www.linkedin.com/", "\n")
       
-      self.driver.get("https://www.linkedin.com")
-      input("Press Enter AFTER you have successfully signed in...")
-      self.signed_in = True
-      return True
+      try:
+         target_url = "https://www.linkedin.com/"
+         
+         # Clear any existing pages
+         self.driver.execute_script("window.stop();")
+         
+         # Navigate to LinkedIn
+         self.driver.get(target_url)
+         
+         # Wait for navigation to complete
+         WebDriverWait(self.driver, timeout=10).until(
+               lambda d: d.execute_script('return document.readyState') == 'complete'
+         )
+      except Exception as e:
+         print(f"🚫 Error navigating to LinkedIn: {e}")
+         return False
+      
+      print("🔐 Checking login status...")
+      time.sleep(2)
+      
+      # Check if we're already on the feed page (logged in)
+      current_url = self.driver.current_url
+      if "linkedin.com/feed" in current_url:
+         print("✅ Already logged in to LinkedIn (on feed page)")
+         return True
+      
+      # Check if we're on any other LinkedIn page that indicates we're logged in
+      if "linkedin.com" in current_url and any(pattern in current_url for pattern in [
+         "/feed", "/mynetwork", "/jobs", "/messaging", "/notifications"
+      ]):
+         print("✅ Already logged in to LinkedIn")
+         return True
+      
+      print("🔐 Not logged in, proceeding with login...")
+      
+      # Original login logic
+      try:
+         """Manual login - just open LinkedIn and wait, also checks for if the user is already logged in"""
+         print("MANUAL LOGIN REQUIRED:")
+         print("1. A Firefox window will open")
+         print("2. Sign in to LinkedIn manually")
+         print("3. Come back here and press Enter")
+         
+         self.driver.get("https://www.linkedin.com")
+         input("Press Enter AFTER you have successfully signed in...")
+         self.signed_in = True
+         return True
+         
+      except TimeoutException:
+         print("🚫 Login failed or timed out")
+         # Check if we might be logged in anyway
+         current_url = self.driver.current_url
+         if "linkedin.com/feed" in current_url or any(pattern in current_url for pattern in [
+               "/feed", "/mynetwork", "/jobs", "/messaging"
+         ]):
+               print("✅ False negative, actually logged in (detected after timeout)")
+               return True
+         return False
+      except Exception as e:
+         print(f"🚫 Error during login: {e}")
+         return False
    
    def close(self):
       """Close the browser driver"""
@@ -328,6 +383,34 @@ class JobScraper:
 
 
 # START - Job Listing Preparation
+def load_config(config_file='config.json'):
+   """
+      Purpose: Function used to load the config file
+      Inputs:
+         config_path, string, the file path to the config file
+      Output:
+         The json contents of the config file from the input.
+   """
+   if not os.path.exists(config_file):
+      print(f"⚠️  Config file '{config_file}' not found. Using default settings.")
+      return {}
+   
+   if not os.path.isfile(config_file):
+      print(f"⚠️  '{config_file}' is not a file. Using default settings.")
+      return {}
+   
+   try:
+      with open(config_file, 'r') as f:
+         config = json.load(f)
+      print(f"✅ Config loaded from '{config_file}'")
+      return config
+   except json.JSONDecodeError as e:
+      print(f"🚫 Error parsing config file '{config_file}': {e}. Using default settings.")
+      return {}
+   except Exception as e:
+      print(f"🚫 Error reading config file '{config_file}': {e}. Using default settings.")
+      return {}
+
 def read_job_links(csv_file_path):
    """
       Purpose: Read job links from CSV file
@@ -345,7 +428,7 @@ def read_job_links(csv_file_path):
                   job_links.append(row[0].strip())
       return job_links
    except Exception as e:
-      print(f"Error reading CSV file: {e}")
+      print(f"🚫 Error reading CSV file: {e}")
       return []
 
 def remove_duplicate_links(links):
@@ -404,7 +487,7 @@ def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
       return sorted_links
       
    except Exception as e:
-      print(f"Error sorting job links by domain: {e}")
+      print(f"🚫 Error sorting job links by domain: {e}")
       return []
 # STOP - Job Listing Preparation
 
@@ -510,7 +593,7 @@ def normalize_pay_rate_csv(csv_file_path):
       
       # Check if 'Pay Rate' column exists
       if 'Pay Rate' not in df.columns:
-         print(f"Error: 'Pay Rate' column not found in {csv_file_path}")
+         print(f"🚫 Error: 'Pay Rate' column not found in {csv_file_path}")
          return
       
       # Initialize counters
@@ -562,9 +645,9 @@ def normalize_pay_rate_csv(csv_file_path):
       print(f"Total entries processed: {len(df)}")
       
    except FileNotFoundError:
-      print(f"Error: File {csv_file_path} not found")
+      print(f"🚫 Error: File {csv_file_path} not found")
    except Exception as e:
-      print(f"Error processing file: {e}")
+      print(f"🚫 Error processing file: {e}")
 # STOP - Post Processing
 
 
@@ -572,23 +655,38 @@ def main():
    parser = argparse.ArgumentParser(description='Scrape job information from links')
    input_csv = parser.add_argument('input_csv', help='Input CSV file with job links')
    parser.add_argument('output_csv', help='Output CSV file for job information')
+   parser.add_argument('--config', default='config.json', help='Config file path')
    parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
    
    args = parser.parse_args()
    
+   # Validate input CSV exists
+   if not os.path.exists(args.input_csv):
+      print(f"\n{'='*50}", "\n") # Divider
+      print(f"🚫 Input CSV file '{args.input_csv}' not found!")
+      print("     In the future, you will not need an input file, as ApplyBot will find jobs for you, but for now, you must source URLs yourself. Place these URLs into a CSV file where each new line contains one link, preferrably with an HTTPS:// in front.")
+      return
+   
+   # Fetch config file contents
+   print(f"\n{'='*50}", "\n") # Divider
+   config = load_config(args.config)
+   
    print(f"\n{'='*50}") # Divider
-
-   # Read and deduplicate links
-   print(f"\nParsing job links from {args.input_csv}...\n\n")
+   
+   # Read and remove duplicate links
+   print(f"\n🕒 Parsing job links from {args.input_csv}...\n\n")
    links = read_job_links(args.input_csv)
    unique_links = remove_duplicate_links(links)
-   print(f"Found {len(unique_links)} unique job links")
+   if (len(unique_links) <= 0): # Error check
+      print(f"🚫 Did not find any job links in {args.input_csv}! Check your input CSV file path, the file contents, and try again.")
+      return
+   print(f"✅ Found {len(unique_links)} unique job links")
    print(f"\n{'='*50}", "\n") # Divider
    
-   # Initialize scraper
-   scraper = JobScraper(headless=args.headless, signed_in = False)
+   # Initialize scraper (will call setup_driver, which will open browser)
+   scraper = JobScraper(config=config, headless=args.headless)
    
-   # Login manually
+   # Login manually if needed
    scraper.linkedin_login()
    
    # Prepare output CSV

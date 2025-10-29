@@ -8,6 +8,7 @@ Made with love.
 
 # Todo
 - Set up a config file that can be changed by the user that will never be committed to Github (other than the initial template one) that contains information like login info., and general settings such as speed and level of anti-bot countermeasures, and a file path to the resume.
+  - NOTE: This is currently implemented but for now only has the Firefox profile file path.
 - Reinforce anti-bot countermeasures.
   - Find a way to bypass Cloudflare anti-bot protection for Indeed
   - Find a way to bypass LinkedIn's captcha on login to make it automatic
