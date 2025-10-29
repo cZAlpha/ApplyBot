@@ -14,6 +14,8 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 import random
 import math
 import time
+import re
+import pandas as pd
 
 
 
@@ -406,6 +408,164 @@ def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
 # STOP - Job Listing Preparation
 
 
+# START - Post Processing
+def normalize_pay_rate(pay_rate_text):
+   """
+   Purpose: Normalize salary input to per annum format.
+   Inputs:
+      pay_rate_text, string, a string containing the column contents of the 'Pay Rate' column from the output of the ApplyBot.
+   Output:
+      Returns normalized salary string or "?" for unknown values.
+   """
+   if pay_rate_text == "?" or not pay_rate_text or pd.isna(pay_rate_text):
+      return "?", ""
+   
+   # Convert to string and lowercase for consistent processing
+   text = str(pay_rate_text).lower().strip()
+   
+   # Handle the specific case of "$30/yr" typo (likely meant $30/hr)
+   if re.search(r'\$\s*\d+\.?\d*/yr', text) and not re.search(r'k/yr', text):
+      # Extract the numeric value and assume it was meant to be per hour
+      match = re.search(r'\$\s*(\d+\.?\d*)/yr', text)
+      if match:
+         hourly_rate = float(match.group(1))
+         # Only convert if it's an unreasonably low annual salary (likely typo)
+         if hourly_rate < 100:  # Assuming annual salaries under $100 are typos
+               annual_salary = hourly_rate * 40 * 52  # 40 hrs/week * 52 weeks
+               return f"${annual_salary:,.0f}", ""
+   
+   # Handle hourly rates (single or range)
+   hourly_matches = re.findall(r'\$\s*(\d+\.?\d*)\s*/hr', text)
+   if hourly_matches:
+      if len(hourly_matches) == 1:
+         # Single hourly rate
+         hourly_rate = float(hourly_matches[0])
+         annual_salary = hourly_rate * 40 * 52
+         return f"${annual_salary:,.0f}", ""
+      elif len(hourly_matches) == 2:
+         # Hourly range
+         hourly_low = float(hourly_matches[0])
+         hourly_high = float(hourly_matches[1])
+         annual_low = hourly_low * 40 * 52
+         annual_high = hourly_high * 40 * 52
+         midpoint = (annual_low + annual_high) / 2
+         midpoint_rounded = (midpoint // 1000) * 1000  # Round down to nearest thousand
+         note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
+         return f"${midpoint_rounded:,.0f}", note
+   
+   # Handle annual salaries with K notation
+   k_match = re.search(r'\$\s*(\d+\.?\d*)\s*k\s*/yr', text)
+   if k_match:
+      annual_salary = float(k_match.group(1)) * 1000
+      return f"${annual_salary:,.0f}", ""
+   
+   # Handle explicit annual salaries
+   annual_match = re.search(r'\$\s*(\d{3,})\s*/yr', text)
+   if annual_match:
+      annual_salary = int(annual_match.group(1))
+      return f"${annual_salary:,.0f}", ""
+   
+   # Handle annual ranges
+   annual_range_match = re.findall(r'\$\s*(\d{3,}(?:,\d{3})*)\s*/yr', text)
+   if annual_range_match and len(annual_range_match) == 2:
+      annual_low = int(annual_range_match[0].replace(',', ''))
+      annual_high = int(annual_range_match[1].replace(',', ''))
+      midpoint = (annual_low + annual_high) / 2
+      midpoint_rounded = (midpoint // 1000) * 1000  # Round down to nearest thousand
+      note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
+      return f"${midpoint_rounded:,.0f}", note
+   
+   # Handle "up to" hourly rates
+   upto_match = re.search(r'up to \$\s*(\d+\.?\d*)\s*/hr', text)
+   if upto_match:
+      hourly_rate = float(upto_match.group(1))
+      annual_salary = hourly_rate * 40 * 52
+      return f"${annual_salary:,.0f}", ""
+   
+   # Handle "starting at" formats
+   starting_match = re.search(r'starting at \$\s*(\d+\.?\d*)\s*k\s*/yr', text)
+   if starting_match:
+      annual_salary = float(starting_match.group(1)) * 1000
+      return f"${annual_salary:,.0f}", ""
+   
+   # If no patterns match but it's not "?", return original
+   if text != "?":
+      return pay_rate_text, ""
+   
+   return "?", ""
+
+def normalize_pay_rate_csv(csv_file_path):
+   """
+   Purpose: Read CSV file, normalize 'Pay Rate' column entries, and overwrite the file. Print statistics about the normalization process.
+   Inputs:
+      csv_file_path, string, file path to the csv that contains the output of the ApplyBot job scraping process
+   Output:
+      Prints to the console the statistics for the normalization process.
+      Adjusts the CSV file inplace to normalize the pay rate.
+   """
+   try:
+      # Read the CSV file
+      df = pd.read_csv(csv_file_path)
+      
+      # Check if 'Pay Rate' column exists
+      if 'Pay Rate' not in df.columns:
+         print(f"Error: 'Pay Rate' column not found in {csv_file_path}")
+         return
+      
+      # Initialize counters
+      fixed_count = 0
+      unchanged_count = 0
+      question_mark_count = 0
+      unparseable_count = 0
+      
+      # Process each entry in the 'Pay Rate' column
+      normalized_rates = []
+      notes_list = []
+      for original_rate in df['Pay Rate']:
+         normalized, note = normalize_pay_rate(original_rate)
+         normalized_rates.append(normalized)
+         notes_list.append(note)
+         
+         # Count statistics
+         if original_rate == "?" or not original_rate or pd.isna(original_rate):
+               question_mark_count += 1
+         elif normalized != original_rate:
+               fixed_count += 1
+         elif normalized == original_rate and normalized != "?":
+               unparseable_count += 1
+         else:
+               unchanged_count += 1
+      
+      # Update the DataFrame with normalized rates and notes
+      df['Pay Rate'] = normalized_rates
+      # Add notes to existing 'Notes' column or create new one
+      if 'Notes' in df.columns:
+         # Combine existing notes with new range notes
+         for i, note in enumerate(notes_list):
+               if note:  # If there's a new note
+                  if pd.isna(df.at[i, 'Notes']) or df.at[i, 'Notes'] == "":
+                     df.at[i, 'Notes'] = note
+                  else:
+                     df.at[i, 'Notes'] = f"{df.at[i, 'Notes']}; {note}"
+      else:
+         df['Notes'] = notes_list
+      
+      # Overwrite the original CSV file
+      df.to_csv(csv_file_path, index=False)
+      
+      # Print statistics
+      print(f"Normalization completed for: {csv_file_path}")
+      print(f"Entries fixed: {fixed_count}")
+      print(f"Entries that could not be parsed: {unparseable_count}")
+      print(f"Entries that were '?': {question_mark_count}")
+      print(f"Total entries processed: {len(df)}")
+      
+   except FileNotFoundError:
+      print(f"Error: File {csv_file_path} not found")
+   except Exception as e:
+      print(f"Error processing file: {e}")
+# STOP - Post Processing
+
 
 def main():
    parser = argparse.ArgumentParser(description='Scrape job information from links')
@@ -477,6 +637,10 @@ def main():
          print(f"\nFailed links:")
          for link in failed_links:
                print(f"  - {link}")
+      
+      # Post Processing
+      print(f"\n{'='*50}") # Divider
+      normalize_pay_rate_csv(args.output_csv)
    
    except Exception as e:
       print(f"\n{'='*50}") # Divider
