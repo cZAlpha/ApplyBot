@@ -1,7 +1,431 @@
-def foobar(inputParameter):
-   print("foobar")
-   if (inputParameter):
-      print("Input was: ", inputParameter)
-      print("Good input!")
+import csv
+import argparse
+from urllib.parse import urlparse
+import sys
+import time
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+import random
+import math
+import time
 
-foobar()
+
+
+class JobScraper:
+   def __init__(self, headless=False, signed_in=False):
+      self.signed_in = signed_in
+      self.user_agents = [
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0",
+         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0", 
+         "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+      ]
+      self.setup_driver()
+   
+   # Old version
+   # def setup_driver(self, headless):
+   #    """Setup Firefox driver with options"""
+   #    firefox_options = Options()
+      
+   #    # Enhanced anti-detection settings
+   #    firefox_options.set_preference("dom.webdriver.enabled", False)
+   #    firefox_options.set_preference("useAutomationExtension", False)
+   #    firefox_options.set_preference("privacy.trackingprotection.enabled", False)
+   #    firefox_options.set_preference("privacy.resistFingerprinting", False)  # Disable resistFingerprinting for consistency
+   #    firefox_options.set_preference("privacy.clearOnShutdown.offlineApps", False)
+   #    firefox_options.set_preference("privacy.clearOnShutdown.passwords", False)
+   #    firefox_options.set_preference("privacy.clearOnShutdown.siteSettings", False)
+   #    firefox_options.set_preference("browser.cache.disk.enable", False)
+   #    firefox_options.set_preference("browser.cache.memory.enable", False)
+   #    firefox_options.set_preference("browser.sessionstore.resume_from_crash", False)
+      
+   #    # More realistic user profile
+   #    firefox_options.set_preference("browser.startup.homepage", "about:blank")
+   #    firefox_options.set_preference("startup.homepage_welcome_url", "about:blank")
+   #    firefox_options.set_preference("startup.homepage_welcome_url.additional", "about:blank")
+      
+   #    # Use a more realistic window size
+   #    firefox_options.add_argument("--width=1920")
+   #    firefox_options.add_argument("--height=1080")
+      
+   #    if headless:
+   #       firefox_options.add_argument("--headless")
+      
+   #    # Set user agent after all other preferences
+   #    firefox_options.set_preference("general.useragent.override", random.choice(self.user_agents))
+      
+   #    try:
+   #       self.driver = webdriver.Firefox(options=firefox_options)
+   #       self.driver.set_page_load_timeout(30)
+         
+   #       # Additional JavaScript evasion
+   #       self.driver.execute_script("""
+   #             Object.defineProperty(navigator, 'webdriver', {
+   #                get: () => undefined,
+   #             });
+   #             Object.defineProperty(navigator, 'plugins', {
+   #                get: () => [1, 2, 3, 4, 5],
+   #             });
+   #             Object.defineProperty(navigator, 'languages', {
+   #                get: () => ['en-US', 'en'],
+   #             });
+   #       """)
+         
+   #    except WebDriverException as e:
+   #       print(f"Error setting up Firefox driver: {e}")
+   #       raise
+   
+   # START - Stealth
+   def human_mouse_movement(self, start_element, end_element):
+      """Simulate human-like mouse movement between elements"""
+      try:
+         # Get element positions
+         start_loc = start_element.location
+         end_loc = end_element.location
+         
+         # Generate curved path using Bezier
+         control_x = (start_loc['x'] + end_loc['x']) / 2 + random.randint(-50, 50)
+         control_y = (start_loc['y'] + end_loc['y']) / 2 + random.randint(-50, 50)
+         
+         # Move through curve points
+         for t in [i/10 for i in range(1, 11)]:
+            x = (1-t)**2 * start_loc['x'] + 2*(1-t)*t * control_x + t**2 * end_loc['x']
+            y = (1-t)**2 * start_loc['y'] + 2*(1-t)*t * control_y + t**2 * end_loc['y']
+            
+            # Add randomness to movement
+            x += random.randint(-2, 2)
+            y += random.randint(-2, 2)
+            
+            self.driver.execute_script(f"window.mouseX = {x}; window.mouseY = {y};")
+            time.sleep(random.uniform(0.01, 0.03))
+            
+      except Exception as e:
+         print(f"Mouse movement failed: {e}")
+   
+   def human_scroll(self, scroll_amount=None):
+      """Simulate human-like scrolling"""
+      if scroll_amount is None:
+         scroll_amount = random.randint(200, 800)
+      
+      # Scroll in chunks with varied speed
+      chunks = random.randint(3, 8)
+      chunk_size = scroll_amount / chunks
+      
+      for i in range(chunks):
+         # Vary scroll speed and direction slightly
+         current_chunk = chunk_size * random.uniform(0.8, 1.2)
+         self.driver.execute_script(f"window.scrollBy(0, {current_chunk});")
+         
+         # Random pauses between scrolls
+         time.sleep(random.uniform(0.1, 0.4))
+      
+      # Sometimes scroll back a bit
+      if random.random() > 0.7:
+         time.sleep(random.uniform(0.5, 1.5))
+         back_scroll = random.randint(50, 200)
+         self.driver.execute_script(f"window.scrollBy(0, -{back_scroll});")
+   
+   def human_typing(self, element, text):
+      """Simulate human-like typing with variable speed"""
+      for char in text:
+         element.send_keys(char)
+         # Variable typing speed
+         time.sleep(random.uniform(0.08, 0.25))
+         
+         # Occasional pauses like a human
+         if random.random() > 0.95:
+               time.sleep(random.uniform(0.5, 1.2))
+   
+   def random_behavior(self):
+      """Perform random human-like behaviors"""
+      behaviors = [
+         lambda: self.human_scroll(random.randint(100, 400)),
+         lambda: time.sleep(random.uniform(1, 3)),
+         lambda: self.driver.execute_script("window.scrollBy(0, -100);"),
+      ]
+      
+      # Perform 1-3 random behaviors
+      for _ in range(random.randint(1, 3)):
+         random.choice(behaviors)()
+         time.sleep(random.uniform(0.5, 1.5))
+   
+   def human_delay(self):
+      """Random delay between actions"""
+      time.sleep(random.uniform(1.5, 4.0))
+   # STOP - Stealth
+   
+   def setup_driver(self):
+      firefox_options = Options()
+      
+      # Use your EXACT Firefox profile with proper Selenium method
+      import glob
+      profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
+      if profiles:
+         profile_path = profiles[0]
+         print(f"Using real Firefox profile: {profile_path}")
+         firefox_options.profile = profile_path  # Use proper Selenium profile assignment
+      else:
+         print("WARNING: No Firefox profile found")
+      
+      # CRITICAL: Disable webdriver detection
+      firefox_options.set_preference("dom.webdriver.enabled", False)
+      firefox_options.set_preference("useAutomationExtension", False)
+      firefox_options.set_preference("marionette", True)
+      
+      try:
+         service = Service()
+         self.driver = webdriver.Firefox(service=service, options=firefox_options)
+         self.driver.set_page_load_timeout(30)
+         
+         # Nuclear option for evasion
+         self.driver.execute_script("""
+               Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+               delete navigator.__proto__.webdriver;
+         """)
+         
+      except WebDriverException as e:
+         print(f"Error setting up Firefox driver: {e}")
+         raise
+   
+   def get_element_text_from_xpaths(self, xpaths, default="?", critical=False):
+      """Try multiple XPaths until one works"""
+      for i, xpath in enumerate(xpaths):
+         try:
+               time.sleep(0.5)  # Shorter delay between attempts
+               element = self.driver.find_element(By.XPATH, xpath)
+               text = element.text.strip()
+               if text:  # Only return if we actually got text
+                  print(f"  Found with XPath #{i+1}: {xpath}")
+                  return text
+         except NoSuchElementException:
+               continue  # Try next XPath
+      
+      # If we get here, none of the XPaths worked
+      if critical:
+         raise Exception(f"CRITICAL: Could not find element with any XPath: {xpaths}")
+      return default
+   
+   def scrape_job_info(self, url):
+      """Scrape job information from a single URL"""
+      print(f"\nScraping: {url}")
+      
+      try:
+         # Keep the webdriver evasion
+         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+         
+         # Navigate to page
+         self.driver.get(url)
+         time.sleep(2)  # Wait for page to load
+         self.human_delay()
+         
+         # Random scrolling before scraping
+         self.human_scroll()
+         self.human_delay()
+         
+         # Define XPATHS for different platforms
+         if 'linkedin.com' in url:
+            # NOTE: X Paths are different when you're signed in due to LinkedIn's webdev team being a bit special, hence the need for tracking this
+            # Arrays of XPaths for each field
+            if not self.signed_in: 
+               job_title_xpaths = [
+                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
+                  ""
+               ]
+               employer_xpaths = [
+                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
+                  ""
+               ]
+               location_xpaths = [
+                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
+                  ""
+               ]
+               pay_rate_xpaths = [
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
+                  ""
+               ]
+            else:
+               job_title_xpaths = [
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1"
+               ]
+               employer_xpaths = [
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a"
+               ]
+               location_xpaths = [
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]"
+               ]
+               pay_rate_xpaths = [
+                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong"
+               ]
+         elif 'indeed.com' in url:
+            # TODO:
+            # Indeed XPATHS (you may need to adjust these)
+            job_title_xpath = "//h1[@class='jobsearch-JobInfoHeader-title']"
+            employer_xpath = "//div[contains(@class, 'jobsearch-InlineCompanyRating')]//a"
+            location_xpath = "//div[contains(@class, 'jobsearch-JobInfoHeader-subtitle')]//div[contains(@class, 'location')]"
+            pay_rate_xpath = "//span[contains(@class, 'salary')]//span"
+         else:
+            print(f"Unsupported platform for URL: {url}")
+            return None
+         
+         # Scrape information with error handling
+         job_info = {
+            'Job Title': self.get_element_text_from_xpaths(job_title_xpaths, critical=True),
+            'Employer': self.get_element_text_from_xpaths(employer_xpaths, critical=True),
+            'Location': self.get_element_text_from_xpaths(location_xpaths),
+            'Pay Rate': self.get_element_text_from_xpaths(pay_rate_xpaths),
+            'Job Ad': url,
+            'Date Found': datetime.now().strftime("%m/%d/%Y")
+         }
+         
+         # Print scraped info for verification
+         print(f"  Title: {job_info['Job Title']}")
+         print(f"  Employer: {job_info['Employer']}")
+         print(f"  Location: {job_info['Location']}")
+         print(f"  Pay Rate: {job_info['Pay Rate']}")
+         
+         return job_info
+         
+      except TimeoutException:
+         print(f"Timeout loading page: {url}")
+         return None
+      except Exception as e:
+         print(f"Error scraping {url}: {e}")
+         return None
+   
+   def linkedin_login(self):
+      """Manual login - just open LinkedIn and wait"""
+      print("MANUAL LOGIN REQUIRED:")
+      print("1. A Firefox window will open")
+      print("2. Sign in to LinkedIn manually")
+      print("3. Come back here and press Enter")
+      
+      self.driver.get("https://www.linkedin.com")
+      input("Press Enter AFTER you have successfully signed in...")
+      self.signed_in = True
+      return True
+   
+   def close(self):
+      """Close the browser driver"""
+      if hasattr(self, 'driver'):
+         self.driver.quit()
+
+
+
+# START - Job Listing Preparation
+def read_job_links(csv_file_path):
+   """Read job links from CSV file"""
+   job_links = []
+   try:
+      with open(csv_file_path, 'r', newline='', encoding='utf-8') as file:
+         reader = csv.reader(file)
+         for row in reader:
+               if row and row[0].strip():
+                  job_links.append(row[0].strip())
+      return job_links
+   except Exception as e:
+      print(f"Error reading CSV file: {e}")
+      return []
+
+def remove_duplicate_links(links):
+   """Remove duplicate links while preserving order"""
+   seen = set()
+   unique_links = []
+   for link in links:
+      if link not in seen:
+         seen.add(link)
+         unique_links.append(link)
+   return unique_links
+# STOP - Job Listing Preparation
+
+
+
+def main():
+   parser = argparse.ArgumentParser(description='Scrape job information from links')
+   parser.add_argument('input_csv', help='Input CSV file with job links')
+   parser.add_argument('output_csv', help='Output CSV file for job information')
+   parser.add_argument('--headless', action='store_true', help='Run browser in headless mode')
+   
+   args = parser.parse_args()
+   
+   # Read and deduplicate links
+   print("Reading job links...")
+   links = read_job_links(args.input_csv)
+   unique_links = remove_duplicate_links(links)
+   print(f"Found {len(unique_links)} unique job links")
+   
+   # Initialize scraper
+   scraper = JobScraper(headless=args.headless, signed_in = False)
+   
+   # Login manually
+   scraper.linkedin_login()
+   
+   # Prepare output CSV
+   fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found']
+   
+   try:
+      with open(args.output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+         writer.writeheader()
+         
+         successful_scrapes = 0
+         failed_links = []
+         
+         for i, link in enumerate(unique_links, 1):
+               print(f"\nProcessing link {i}/{len(unique_links)}")
+               
+               job_info = scraper.scrape_job_info(link)
+               
+               if job_info:
+                  writer.writerow(job_info)
+                  csvfile.flush()  # Ensure data is written immediately
+                  successful_scrapes += 1
+                  print(f"✓ Successfully scraped and saved")
+               else:
+                  failed_links.append(link)
+                  print(f"✗ Failed to scrape")
+                  
+                  # Pause on failure for user input
+                  print("Press Enter to continue to next job, or Ctrl+C to exit...")
+                  try:
+                     input()
+                  except KeyboardInterrupt:
+                     print("\nUser interrupted. Saving progress...")
+                     break
+               
+               # Random delay between requests to avoid being blocked
+               time.sleep(random.uniform(2, 4))
+      
+      # Summary
+      print(f"\n{'='*50}")
+      print(f"Scraping Complete!")
+      print(f"Successful: {successful_scrapes}")
+      print(f"Failed: {len(failed_links)}")
+      print(f"Output saved to: {args.output_csv}")
+      
+      if failed_links:
+         print(f"\nFailed links:")
+         for link in failed_links:
+               print(f"  - {link}")
+   
+   except Exception as e:
+      print(f"Unexpected error: {e}")
+      print("Press Enter to exit...")
+      input()
+   finally:
+      scraper.close()
+
+
+
+if __name__ == "__main__":
+   main()

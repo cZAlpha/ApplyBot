@@ -1,2 +1,62 @@
 # ApplyBot
 A bot to automatically apply to job postings. An attempt to combat the insanely stupid job market using the shotgun method.
+<br><br>
+
+## Note From Author
+
+### PII
+In all of the text below, I have omitted my name and paths that may include PII and replaced it with an ellipses ("..."). Keep this in mind when troubleshooting and just in general.
+<br><br>
+
+### Don't Worry About This Warning
+Its probably mildly important but frankly I do not care, if you see this and figure out how to get it to stop, shoot me an email and/or PR.
+```
+/.../ApplyBot/env/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+```
+<br><br>
+
+# Sample Usage
+
+Once you have found a bunch of job listings you'd like to scrape the information from, put it in a spreadsheet of your choosing, ensuring that all listing URLs are on different lines. Then export that as a CSV file. Below, this is called 'jobs.csv'. You can then designate the name for the output file, below this is called 'output.csv'.
+```
+python main.py jobs.csv output.csv
+```
+
+# Sample Output
+```
+Reading job links...
+Found 41 unique job links
+Using real Firefox profile: /.../....default-release
+MANUAL LOGIN REQUIRED:
+1. A Firefox window will open
+2. Sign in to LinkedIn manually
+3. Come back here and press Enter
+Press Enter AFTER you have successfully signed in...
+
+Processing link 1/41
+
+...
+
+Processing link 41/41
+
+Scraping: https://www.linkedin.com/jobs/view/4331820820/?eBP=CwEAAAGaK7o7NrCSP_Z5r7VZV4YfWn0WBRlZsq3m9j4Vlpz-dHllwkp1CkI-5nu0x7ui6peECM9gTYctnEAXlnkmCQhYuKjr7oYcsp0FI2YWDstcQvCAzRspRlEnATq7yttKbhL4DoyPj1ozQbJV3nyxppWtKI7_9JdxmonIMB8vn9jXu0Whte4C7Zf28QugGGHdaTLRdLE25vgK5oA_e4mO53fCTg6dBgXYLm5W7IYbE6xnSQYynbHLUjT0FJTU4y3VGtpR5BB5tpvArCMz-l6yYR22G-nqdYufaHZl5oLStJahu7ZjHERdEXwUh0N81WX-2NI1uL7Nl9j68SoEZNdZIFOiUzRjD2yawMjglAji6FhU65L-s0BXjdt16a44H5HbqSm2pCovhWd_Y43fnJxfTlRP_3V8F30lFsr-BViZfpWTl1mloUkq0GctZHsQ6sMxCXW8dXl01fe2TblcS0pP1jT6GNnz_Gw5XuyualkYwi52TBMd26xS6GXYKmcbfHfG8MMngW_PjA&lici=QWiFA4f6iuFpaMz0Q3oejQ%3D%3D
+  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1
+  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
+  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
+  Title: Programmer I- Custom Reports
+  Employer: Lensa
+  Location: United States
+  Pay Rate: ?
+✓ Successfully scraped and saved
+
+===================================================
+Scraping Complete!
+Successful: 39
+Failed: 2
+Output saved to: output.csv
+
+Failed links:
+  - https://www.linkedin.com/jobs/view/4332016692/?eBP=CwEAAAGaKIvhSk-ziBRlUPKA56C-O87xlUqNy0MFmKHuBcCo4jr5Fg047M65UCrQlqtzhJIR3VzGmMW7qthPXqGhlJwlgt-0hePQZuGKb7WdYdDg-LGAj8j5gxv5SEqt3ec6XdSNVgOHSZDyqLTDFvpLj05X20ks0PMZ3VfTjyVVaFnMYPBc3wsTJYE7wbnYEbK4cPW7aOO7qK_XFwtLISy1PUF84V6QGyhryzTkbkDL5KsP9_P86J0pAoMui-48E3bVh4MN2Jo_RinqPzmSiG6mQRplr1_lmyQk_5ihlONZyyqOZZNPxXgG6M3WsFvCfQsDA0HYpUlS0eaNg-_Sjq6smoYwSIFxYhCrxvKF7iZo9KShixPyURyq3ETK5wLr5KC8bit1sVw_798QY7oCdUV1sOQrzVI8ClBY1IZc5oIKFrRvoPcny4mMkJkIm7xJmQkQNUYXfyi3qAunHgn7945Hz9mkLMMdA-W06wcatfFKLZRod3488YhqVNLR4mbgT_pLt0wotfSyorLr5G8&lici=gznxmE0d7BU4A7rZuiApAA%3D%3D
+  - https://www.linkedin.com/jobs/view/4332450147/?eBP=NOT_ELIGIBLE_FOR_CHARGING&lici=gheChUzG%2B1T%2FK5oZM%2FeaLw%3D%3D
+```
