@@ -750,7 +750,7 @@ def normalize_pay_rate(pay_rate_text):
    """
    
    # If there was no pay rate and the scraper grabbed the wrong information
-   if "hybrid" in pay_rate_text.lower() or "on-site" in pay_rate_text.lower() or "site" in pay_rate_text.lower() or "remote" in pay_rate_text.lower():
+   if "hybrid" in pay_rate_text.lower() or "on-site" in pay_rate_text.lower() or "site" in pay_rate_text.lower() or "remote" in pay_rate_text.lower() or "full-time" in pay_rate_text.lower() or "full" in pay_rate_text.lower() or "part" in pay_rate_text.lower() or "part-time" in pay_rate_text.lower() or "time" in pay_rate_text.lower():
       return "?"
    
    if pay_rate_text == "?" or not pay_rate_text or pd.isna(pay_rate_text):
