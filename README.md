@@ -19,8 +19,26 @@ Made with love.
 <br><br>
 
 # Todo
-- Fix issue where pay rate is "On Site" or another type of work instead of the pay rate.
-- Have pay rate be normalized before written into output CSV file instead of normalization afterwards
+- IMPORTANT: Change the structure of the xpath_stats.json to be:
+    "element_name" {
+      "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1": {
+        "count": 4
+      }
+    }
+  Instead of:
+    "element_name" {
+      "xpath_2": {
+        "count": 4,
+        "xpath": "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+        "index": 2
+      }
+    }
+    REASON: Keeping track of the index is totally unnecessary and overcomplicates things. This is because if the xpath array is adjusted post hoc other than just appendations, it will cease to work and break everything.
+- Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped.
+- Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked
+- Adjust pay rate normalization function to put the mean (average) pay rate in the pay rate column, and place the range in the notes column (notes column may need to be added). NOTE: Sometimes it will do stuff like: "('$47,000', 'Original range: $37,440/yr - $58,240/yr')", which is basically what I want minus the notes column, but it only does this <50% of the time for some reason. Not sure why.
+- Have the bot search for "top secret clearance", "polygraph", etc. and all related terms and not include it in the output if the config says the user does not have a TS clearance
+- Add skills to the config and write an algorithm to determine how many skills are listed in the job that the user has, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.
 - Set up a config file that can be changed by the user that will never be committed to Github (other than the initial template one) that contains information like login info., and general settings such as speed and level of anti-bot countermeasures, and a file path to the resume.
   - NOTE: This is currently implemented but for now only has the Firefox profile file path.
 - Reinforce anti-bot countermeasures.

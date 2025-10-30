@@ -35,6 +35,7 @@ class JobScraper:
       self.setup_driver()
       
       # Statistical tracking variables
+      self.xpath_hits = {} # Object to hold the element_name -> [how_many_hits_xpath_1, ...] | Basically: An object to keep track of what xpaths are hitting the most for what elements being scraped for. This can be used to better curate the scraping of info. from job listings
       self.critical_element_scrape_fails = 0 # These indicate that XPaths MUST be changed to adjust for differing situations
       self.non_critical_element_scrape_fails = 0 # These indicate, if higher than should be expected, that XPaths likely need to be adjusted
    
@@ -170,7 +171,115 @@ class JobScraper:
       time.sleep(random.uniform(1.5, 4.0))
    # STOP - Stealth
    
+   # START - Statistics
+   def _track_xpath_hit(self, element_name, xpath_index, xpath_string):
+      """Track which XPaths are successful for which elements | Statistical tracking function"""
+      # Load current statistics from file
+      stats = self._load_xpath_stats_from_file()
+      
+      if element_name not in stats:
+         stats[element_name] = {}
+      
+      # Use a simplified key for the XPath (just the index or a hash)
+      xpath_key = f"xpath_{xpath_index}"  # or use: hashlib.md5(xpath_string.encode()).hexdigest()[:8]
+      
+      if xpath_key not in stats[element_name]:
+         stats[element_name][xpath_key] = {
+               'count': 0,
+               'xpath': xpath_string,
+               'index': xpath_index
+         }
+      
+      stats[element_name][xpath_key]['count'] += 1
+      
+      # Save updated statistics back to file
+      self._save_xpath_stats_to_file(stats)
+   
+   def get_xpath_statistics(self):
+      """Print out XPath hit statistics"""
+      stats = self._load_xpath_stats_from_file()
+      
+      type_text("XPATH HIT STATISTICS")
+      
+      for element_name, xpaths in stats.items():
+         type_text(f"\n{element_name}:")
+         
+         # Sort by count descending
+         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+         
+         for xpath_key, data in sorted_xpaths:
+               type_text(f"  XPath #{data['index']+1}: {data['count']} hits")
+               type_text(f"    {data['xpath']}")
+   
+   def get_optimized_xpaths(self):
+      """Get optimized XPath lists based on hit statistics"""
+      stats = self._load_xpath_stats_from_file()
+      optimized = {}
+      
+      for element_name, xpaths in stats.items():
+         # Sort by hit count descending
+         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+         
+         # Create optimized list maintaining original XPath objects
+         optimized[element_name] = [data['xpath'] for _, data in sorted_xpaths]
+      
+      return optimized
+   
+   def save_xpath_statistics(self, filename="xpath_stats.json"):
+      """Save XPath statistics to a file - kept for backward compatibility"""
+      stats = self._load_xpath_stats_from_file()
+      self._save_xpath_stats_to_file(stats, filename)
+      type_text(f"XPath statistics saved to {filename}")
+   
+   def load_xpath_statistics(self, filename="xpath_stats.json"):
+      """Load XPath statistics from a file - kept for backward compatibility"""
+      try:
+         with open(filename, 'r') as f:
+               stats = json.load(f)
+         
+         # Update internal variable for compatibility
+         self.xpath_hits = stats
+         type_text(f"XPath statistics loaded from {filename}")
+      except FileNotFoundError:
+         type_text(f"No existing XPath statistics file found at {filename}")
+      except Exception as e:
+         type_text(f"Error loading XPath statistics: {e}")
+   
+   def _load_xpath_stats_from_file(self, filename="xpath_stats.json"):
+      """Internal method to load statistics from file"""
+      try:
+         with open(filename, 'r') as f:
+               return json.load(f)
+      except FileNotFoundError:
+         return {}  # Return empty dict if file doesn't exist
+      except Exception as e:
+         type_text(f"Error loading XPath statistics from file: {e}")
+         return {}
+   
+   def _save_xpath_stats_to_file(self, stats, filename="xpath_stats.json"):
+      """Internal method to save statistics to file"""
+      try:
+         with open(filename, 'w') as f:
+               json.dump(stats, f, indent=2)
+      except Exception as e:
+         type_text(f"Error saving XPath statistics to file: {e}")
+   
+   def get_element_scraping_statistics(self):
+      type_text("ELEMENT SCRAPING FAILURES")
+      type_text("")
+      if (self.critical_element_scrape_fails + self.non_critical_element_scrape_fails <= 0): # If no element scraping failures occurred
+         type_text("No element scraping failures occurred! Woohoo!")
+      else:
+         type_text("Critical Element Scraping Failures: " + str(self.critical_element_scrape_fails)) # Number of times where a critical scraping element failed to be scraped
+         type_text("Non-Critical Element Scraping Failures: " + str(self.non_critical_element_scrape_fails)) # Number of times where a non-critical scraping element failed to be scraped
+   # STOP - Statistics
+   
    def setup_driver(self):
+      optimized_xpaths = self.get_optimized_xpaths()
+      
+      type_text("\nOptimized XPaths (JSON format):")
+      type_text(json.dumps(optimized_xpaths, indent=2))
+      
       firefox_options = Options()
       
       # Use your EXACT Firefox profile with proper Selenium method
@@ -215,7 +324,9 @@ class JobScraper:
                element = self.driver.find_element(By.XPATH, xpath)
                text = element.text.strip()
                if text:  # Only return if we actually got text
-                  type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}")
+                  type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}") # Output successful hit to the console                
+                  self._track_xpath_hit(element_name, i, xpath) # Track the successful XPath hit
+                  self.save_xpath_statistics() # Update statistics as it goes
                   return text
          except NoSuchElementException:
                continue  # Try next XPath
@@ -252,27 +363,73 @@ class JobScraper:
          if 'linkedin.com' in url:
             # Arrays of XPaths for each field
                job_title_xpaths = [
+                  # Absolute XPaths
                   "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1"
+                  # More flexible XPaths based on the HTML structure
+                  "//h1[contains(@class, 'job-details-jobs-unified-top-card__job-title')]",
+                  "//h1[contains(@class, 't-24') and contains(@class, 't-bold')]",
+                  "//h1[@class='t-24 t-bold inline']",
+                  "//div[contains(@class, 'job-details-jobs-unified-top-card__job-title')]//h1",
+                  "//h1[contains(text(), 'Engineer') or contains(text(), 'Developer') or contains(text(), 'Manager') or contains(text(), 'Tech') or contains(text(), 'Analyst') or contains(text(), 'Help') or contains(text(), 'Desk') or contains(text(), 'Admin') or contains(text(), 'Network') or contains(text(), 'Desk') or contains(text(), 'Support')]",
+                  # Generic h1 elements that are likely to be job titles
+                  "//main//h1",
+                  "//div[contains(@class, 'main')]//h1",
+                  "//h1[not(contains(@class, 'hidden')) and string-length(text()) > 10]",
+                  # Fallback to any h1 that's not empty
+                  "//h1[normalize-space(text()) != '']"
                ]
                employer_xpaths = [
+                  # Absolute XPaths
                   "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a"
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
+                  # Company name in specific container
+                  "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a",
+                  "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]",
+                  # Links with company class patterns
+                  "//a[contains(@class, 'DJZxjMmjvRjrlgkfexJvTUxNqCHEnFKxUSdJm')]",
+                  
+                  # Company links near logos
+                  "//div[contains(@class, 'display-flex align-items-center')]//a[contains(@href, '/company/')]",
+                  "//a[.//div[contains(@class, 'ivm-image-view-model')]]/following-sibling::div//a",
+                  # Text content near company logos
+                  "//img[contains(@alt, 'logo')]/ancestor::a/following-sibling::div//a",
+                  # Generic company name patterns
+                  "//a[not(contains(text(), 'Apply')) and not(contains(text(), 'Save')) and string-length(text()) > 2 and string-length(text()) < 50]"
                ]
                location_xpaths = [
+                  # Original absolute XPaths (keep as fallbacks)
                   "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]"
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
+                  # Location in the tertiary description container
+                  "//div[contains(@class, 'job-details-jobs-unified-top-card__tertiary-description-container')]//span[contains(@class, 'tvm__text')][1]",
+                  "//div[contains(@class, 'job-details-jobs-unified-top-card__primary-description-container')]//span[contains(@class, 'tvm__text')][1]",
+                  # First tvm__text element (usually location)
+                  "//span[contains(@class, 'tvm__text') and contains(@class, 'tvm__text--low-emphasis')][1]",
+                  # Location patterns in text
+                  "//span[contains(@class, 'tvm__text') and (contains(text(), 'United States') or contains(text(), 'FL') or contains(text(), 'MD') or contains(text(), 'PA') or contains(text(), 'VA') or contains(text(), 'DE') or contains(text(), 'CA') or contains(text(), 'NY') or contains(text(), 'TX') or contains(text(), 'Remote') or contains(text(), 'Hybrid'))]",
+                  # Before the first separator (·)
+                  "//span[contains(@class, 'tvm__text')][preceding-sibling::span[contains(@class, 'white-space-pre')][1]]",
+                  # In the location-specific containers
+                  "//span[contains(@class, 'tvm__text') and not(contains(text(), 'ago')) and not(contains(text(), 'people')) and not(contains(text(), 'Promoted')) and not(contains(text(), 'Responses'))]",
+                  # Generic location fallback
+                  "//span[contains(@class, 't-black--light')]//span[1]"
                ]
                pay_rate_xpaths = [
+                  # Absolute XPaths
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong"
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong",
+                  # More flexible XPaths
+                  "//strong[contains(., '$')]",
+                  "//span[contains(., '$') and (contains(., '/yr') or contains(., '/hr'))]",
+                  "//*[contains(text(), '$') and (contains(text(), '/yr') or contains(text(), '/hr'))]",
+                  "//button[contains(., '$')]//strong",
+                  "//button[contains(., '$')]//span" 
                ]
          elif 'indeed.com' in url:
             # TODO: Indeed XPATHS (these need to be adjusted, both the actual XPaths but also they need to be adjusted to work with the new array input args. for the function 'get_element_text_from_xpaths')
@@ -289,7 +446,7 @@ class JobScraper:
             'Job Title': self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True),
             'Employer': self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True),
             'Location': self.get_element_text_from_xpaths("Location", location_xpaths),
-            'Pay Rate': self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths),
+            'Pay Rate': normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)), # Normalize pay rate immediately
             'Job Ad': url,
             'Date Found': datetime.now().strftime("%m/%d/%Y")
          }
@@ -381,10 +538,19 @@ class JobScraper:
          type_text(f"🚫 Error during login: {e}")
          return False
    
+   def print_statistics(self):
+      type_text("")
+      print_applybot_mascot_w_statistics() # Print the mascot with statistics text
+      type_text("")
+      self.get_xpath_statistics()
+      type_text("")
+      self.get_element_scraping_statistics()
+   
    def close(self):
       """Close the browser driver"""
       if hasattr(self, 'driver'):
          self.driver.quit()
+      self.print_statistics() # Print statistics
 
 
 
@@ -572,6 +738,8 @@ def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
 
 
 # START - Job Listing Post Processing
+# TODO: find_location_state() | returns the shortened state name. E.x.: West Chester, PA --> PA, stuff like that
+
 def normalize_pay_rate(pay_rate_text):
    """
    Purpose: Normalize salary input to per annum format.
@@ -580,8 +748,13 @@ def normalize_pay_rate(pay_rate_text):
    Output:
       Returns normalized salary string or "?" for unknown values.
    """
+   
+   # If there was no pay rate and the scraper grabbed the wrong information
+   if "hybrid" in pay_rate_text.lower() or "on-site" in pay_rate_text.lower() or "site" in pay_rate_text.lower() or "remote" in pay_rate_text.lower():
+      return "?"
+   
    if pay_rate_text == "?" or not pay_rate_text or pd.isna(pay_rate_text):
-      return "?", ""
+      return "?"
    
    # Convert to string and lowercase for consistent processing
    text = str(pay_rate_text).lower().strip()
@@ -595,7 +768,7 @@ def normalize_pay_rate(pay_rate_text):
          # Only convert if it's an unreasonably low annual salary (likely typo)
          if hourly_rate < 100:  # Assuming annual salaries under $100 are typos
                annual_salary = hourly_rate * 40 * 52  # 40 hrs/week * 52 weeks
-               return f"${annual_salary:,.0f}", ""
+               return f"${annual_salary:,.0f}"
    
    # Handle hourly rates (single or range)
    hourly_matches = re.findall(r'\$\s*(\d+\.?\d*)\s*/hr', text)
@@ -604,7 +777,7 @@ def normalize_pay_rate(pay_rate_text):
          # Single hourly rate
          hourly_rate = float(hourly_matches[0])
          annual_salary = hourly_rate * 40 * 52
-         return f"${annual_salary:,.0f}", ""
+         return f"${annual_salary:,.0f}"
       elif len(hourly_matches) == 2:
          # Hourly range
          hourly_low = float(hourly_matches[0])
@@ -620,13 +793,13 @@ def normalize_pay_rate(pay_rate_text):
    k_match = re.search(r'\$\s*(\d+\.?\d*)\s*k\s*/yr', text)
    if k_match:
       annual_salary = float(k_match.group(1)) * 1000
-      return f"${annual_salary:,.0f}", ""
+      return f"${annual_salary:,.0f}"
    
    # Handle explicit annual salaries
    annual_match = re.search(r'\$\s*(\d{3,})\s*/yr', text)
    if annual_match:
       annual_salary = int(annual_match.group(1))
-      return f"${annual_salary:,.0f}", ""
+      return f"${annual_salary:,.0f}"
    
    # Handle annual ranges
    annual_range_match = re.findall(r'\$\s*(\d{3,}(?:,\d{3})*)\s*/yr', text)
@@ -643,19 +816,19 @@ def normalize_pay_rate(pay_rate_text):
    if upto_match:
       hourly_rate = float(upto_match.group(1))
       annual_salary = hourly_rate * 40 * 52
-      return f"${annual_salary:,.0f}", ""
+      return f"${annual_salary:,.0f}"
    
    # Handle "starting at" formats
    starting_match = re.search(r'starting at \$\s*(\d+\.?\d*)\s*k\s*/yr', text)
    if starting_match:
       annual_salary = float(starting_match.group(1)) * 1000
-      return f"${annual_salary:,.0f}", ""
+      return f"${annual_salary:,.0f}"
    
    # If no patterns match but it's not "?", return original
    if text != "?":
-      return pay_rate_text, ""
+      return pay_rate_text
    
-   return "?", ""
+   return "?"
 
 def normalize_pay_rate_csv(csv_file_path):
    """
@@ -730,22 +903,34 @@ def normalize_pay_rate_csv(csv_file_path):
 # STOP - Job Listing Post Processing
 
 # START - Print functions
-def print_applybot_intro():
-   type_text("")
-   type_text("╭─────────────────╮")
-   type_text("│    ApplyBot     │")
-   type_text("╰─────────────────╯")
+def print_applybot_mascot_w_statistics():
+   type_text("    ∧___∧        __ _        _   _     _   _          ")
+   type_text("   ( •ㅅ•)      / _\ |_ __ _| |_(_)___| |_(_) ___ ___ ")
+   type_text("   /     ♡      \ \| __/ _` | __| / __| __| |/ __/ __|")
+   type_text("   (   ⌒ ヽ     _\ \ || (_| | |_| \__ \ |_| | (__\__ \\")
+   type_text("   ＼_ﾉ  ＿」   \__/\__\__,_|\__|_|___/\__|_|\___|___/")
+   type_text("    ♪ ~ ♪")
+
+def print_applybot_mascot():
    type_text("    ∧___∧")
    type_text("   ( •ㅅ•) ")
    type_text("   /     ♡ ")
    type_text("   (   ⌒ ヽ  ")
    type_text("   ＼_ﾉ  ＿」  ")
    type_text("    ♪ ~ ♪")
+
+def print_applybot_intro():
    type_text("")
-   type_text("Made by cZAlpha")
+   type_text("╭─────────────────╮")
+   type_text("│    ApplyBot     │")
+   type_text("╰─────────────────╯")
+   type_text("")
+   print_applybot_mascot() # Mascot!
+   type_text("")
+   type_text("   Made by cZAlpha")
    type_text("")
 
-def type_text(text, delay=0.005):
+def type_text(text, delay=0.004):
    """Print text with typing effect"""
    for char in text:
       print(char, end='', flush=True)  # ✅ CORRECT - use print()
@@ -853,7 +1038,6 @@ def main():
       
       # Post Processing
       type_text(f"\n{'='*50}") # Divider
-      normalize_pay_rate_csv(args.output_csv)
    
    except Exception as e:
       type_text(f"\n{'='*50}") # Divider
