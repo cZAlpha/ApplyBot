@@ -382,7 +382,7 @@ class JobScraper:
 
 
 
-# START - Job Listing Preparation
+# START - Job Listing Pre Processing
 def load_config(config_file='config.json'):
    """
       Purpose: Function used to load the config file
@@ -411,6 +411,77 @@ def load_config(config_file='config.json'):
       print(f"🚫 Error reading config file '{config_file}': {e}. Using default settings.")
       return {}
 
+def normalize_job_links(links):
+   """
+   Purpose: Remove all extra fluff from a job listing URL such as tracking stuff, etc.
+   Input:
+      links, an array strings of job listings urls
+   Output:
+      normalized_links, an array of normalized string URLs
+   """
+   normalized_links = []
+   number_of_successfully_normalized_links = 0
+   
+   print(f"\n{'='*50}", "\n") # Divider
+   print("Normalizing Job Listing URLs...")
+   
+   for link in links:
+      # Check if it's a LinkedIn link
+      if "linkedin.com" in link:
+         # Find the position of "/view/" followed by numbers
+         view_index = link.find("/view/")
+         if view_index != -1:
+               # Find the next slash after "/view/######"
+               start_search = view_index + 6  # Move past "/view/"
+               # Look for the next slash after the job ID numbers
+               next_slash = link.find("/", start_search)
+               if next_slash != -1:
+                  # Keep everything up to and including the slash after the job ID
+                  normalized_link = link[:next_slash + 1]
+                  number_of_successfully_normalized_links += 1
+                  normalized_links.append(normalized_link)
+               else:
+                  # If no trailing slash found, use the original link
+                  number_of_successfully_normalized_links += 1
+                  normalized_links.append(link)
+         else:
+               # If no "/view/" pattern found, use original link
+               normalized_links.append(link)
+               
+      # Check if it's an Indeed link
+      elif "indeed.com" in link:
+         # Find the position of "/viewjob?jk="
+         jk_index = link.find("/viewjob?jk=")
+         if jk_index != -1:
+            # Find the next slash after the job key
+            start_search = jk_index + 12  # Move past "/viewjob?jk="
+            # Look for the next slash or question mark or end of string
+            next_slash = link.find("/", start_search)
+            next_question = link.find("?", start_search)
+            next_ampersand = link.find("&", start_search)
+            
+            # Find the earliest special character after the job key
+            end_positions = [pos for pos in [next_slash, next_question, next_ampersand] if pos != -1]
+            if end_positions:
+               end_pos = min(end_positions)
+               normalized_link = link[:end_pos]
+               number_of_successfully_normalized_links += 1
+               normalized_links.append(normalized_link)
+            else:
+               # If no special characters found, use the entire link
+               number_of_successfully_normalized_links += 1
+               normalized_links.append(link)
+         else:
+            # If no "/viewjob?jk=" pattern found, use original link
+            normalized_links.append(link)
+      
+      # If it's neither LinkedIn nor Indeed
+      else:
+         print(f"Invalid link (not LinkedIn or Indeed): {link}")
+   
+   print(f"Successfully normalized {number_of_successfully_normalized_links}/{len(links)} of input links.")
+   return normalized_links
+
 def read_job_links(csv_file_path):
    """
       Purpose: Read job links from CSV file
@@ -435,7 +506,7 @@ def remove_duplicate_links(links):
    """
       Purpose: Remove duplicate links while preserving order
       Input:
-         links, an array of links
+         links, an array strings of job listings urls
       Output:
          unique_links, an array of unique links
    """
@@ -447,14 +518,14 @@ def remove_duplicate_links(links):
          unique_links.append(link)
    return unique_links
 
-def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
+def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
    """
-      Purpose: Sorts the links in the CSV file input by their domain alphabetically. This is so that the job scraper can handle different platforms such as LinkedIn and Indeed separately
+      Purpose: Sorts the links in the CSV file input by their domain alphabetically, removes duplicates and normalizes links. This is so that the job scraper can handle different platforms such as LinkedIn and Indeed separately
       Input:
          csv_file_path, the string file path to the CSV file containing the job listing URLs
          ascending_alphabetically, boolean used to dictate if it should be sorted A-Z (default, True), or Z-A (False)
       Output:
-         An array of job listing URLs sorted alphabetically
+         cleaned_links, An array of job listing URLs (string) sorted alphabetically, rid of duplicates and whose links are normalized
    """
    try:
       # Read job links from CSV file
@@ -462,10 +533,11 @@ def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
       
       # Remove duplicates while preserving order initially
       unique_links = remove_duplicate_links(job_links)
+      normalized_job_links = normalize_job_links(unique_links)
       
       # Extract domain from each URL and create tuples of (domain, url)
       domain_url_pairs = []
-      for url in unique_links:
+      for url in normalized_job_links:
          try:
             # Parse the URL to extract the domain
             parsed_url = urlparse(url)
@@ -482,17 +554,17 @@ def sort_job_links_by_domain(csv_file_path, ascending_alphabetically=True):
       sorted_pairs = sorted(domain_url_pairs, key=lambda x: x[0], reverse=not ascending_alphabetically)
       
       # Extract just the URLs in sorted order
-      sorted_links = [url for domain, url in sorted_pairs]
+      cleaned_links = [url for domain, url in sorted_pairs]
       
-      return sorted_links
+      return cleaned_links
       
    except Exception as e:
       print(f"🚫 Error sorting job links by domain: {e}")
       return []
-# STOP - Job Listing Preparation
+# STOP - Job Listing Pre Processing
 
 
-# START - Post Processing
+# START - Job Listing Post Processing
 def normalize_pay_rate(pay_rate_text):
    """
    Purpose: Normalize salary input to per annum format.
@@ -648,7 +720,32 @@ def normalize_pay_rate_csv(csv_file_path):
       print(f"🚫 Error: File {csv_file_path} not found")
    except Exception as e:
       print(f"🚫 Error processing file: {e}")
-# STOP - Post Processing
+# STOP - Job Listing Post Processing
+
+# START - Print functions
+def print_applybot_intro():
+   print("")
+   print("╭─────────────────╮")
+   print("│    ApplyBot     │")
+   print("╰─────────────────╯")
+   print("    ∧___∧")
+   print("   ( •ㅅ•) ")
+   print("   /     ♡ ")
+   print("   (   ⌒ ヽ  ")
+   print("   ＼_ﾉ  ＿」  ")
+   print("    ♪ ~ ♪")
+   print("")
+   print("Made by cZAlpha")
+   print("")
+
+def type_text(self, text, delay=0.02):
+   """Print text with typing effect"""
+   for char in text:
+      print(char, end='', flush=True)
+      time.sleep(delay)
+   print()  # New line at the end
+# STOP - Print functions
+
 
 
 def main():
@@ -660,12 +757,17 @@ def main():
    
    args = parser.parse_args()
    
+   print(f"\n{'='*50}", "\n") # Divider
+   print_applybot_intro()
+   
    # Validate input CSV exists
-   if not os.path.exists(args.input_csv):
+   if not os.path.exists(args.input_csv): # No input csv file found
       print(f"\n{'='*50}", "\n") # Divider
       print(f"🚫 Input CSV file '{args.input_csv}' not found!")
       print("     In the future, you will not need an input file, as ApplyBot will find jobs for you, but for now, you must source URLs yourself. Place these URLs into a CSV file where each new line contains one link, preferrably with an HTTPS:// in front.")
       return
+   else: # Input file was successfully found
+      cleaned_links = pre_process_job_links(args.input_csv) # Sort all job links by domain, remove duplicates and normalize links
    
    # Fetch config file contents
    print(f"\n{'='*50}", "\n") # Divider
@@ -675,12 +777,10 @@ def main():
    
    # Read and remove duplicate links
    print(f"\n🕒 Parsing job links from {args.input_csv}...\n\n")
-   links = read_job_links(args.input_csv)
-   unique_links = remove_duplicate_links(links)
-   if (len(unique_links) <= 0): # Error check
+   if (len(cleaned_links) <= 0): # Error check
       print(f"🚫 Did not find any job links in {args.input_csv}! Check your input CSV file path, the file contents, and try again.")
       return
-   print(f"✅ Found {len(unique_links)} unique job links")
+   print(f"✅ Found {len(cleaned_links)} unique job links")
    print(f"\n{'='*50}", "\n") # Divider
    
    # Initialize scraper (will call setup_driver, which will open browser)
@@ -700,9 +800,9 @@ def main():
          successful_scrapes = 0
          failed_links = []
          
-         for i, link in enumerate(unique_links, 1):
+         for i, link in enumerate(cleaned_links, 1):
             print(f"\n{'='*50}") # Divider
-            print(f"\nProcessing link {i}/{len(unique_links)}")
+            print(f"\nProcessing link {i}/{len(cleaned_links)}")
             
             # Scrape the job info
             job_info = scraper.scrape_job_info(link)
