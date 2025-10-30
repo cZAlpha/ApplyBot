@@ -116,7 +116,7 @@ class JobScraper:
             time.sleep(random.uniform(0.01, 0.03))
             
       except Exception as e:
-         print(f"Mouse movement failed: {e}")
+         type_text(f"Mouse movement failed: {e}")
    
    def human_scroll(self, scroll_amount=None):
       """Simulate human-like scrolling"""
@@ -178,12 +178,15 @@ class JobScraper:
       profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
       if profiles:
          profile_path = profiles[0]
-         print("🕒 Opening browser...", "\n")
-         print(f"    Using Firefox profile: {profile_path}", "\n")
+         type_text("🕒 Opening browser...")
+         type_text("")
+         type_text(f"    Using Firefox profile: {profile_path}")
+         type_text("")
          firefox_options.profile = profile_path  # Use proper Selenium profile assignment
       else:
          # TODO IMPORTANT: Default to random profile or default profile if one is not found
-         print("WARNING: No Firefox profile found", "\n")
+         type_text("WARNING: No Firefox profile found")
+         type_text("")
       
       # CRITICAL: Disable webdriver detection
       firefox_options.set_preference("dom.webdriver.enabled", False)
@@ -201,7 +204,7 @@ class JobScraper:
                delete navigator.__proto__.webdriver;""")
          
       except WebDriverException as e:
-         print(f"🚫 Error setting up Firefox driver: {e}")
+         type_text(f"🚫 Error setting up Firefox driver: {e}")
          raise
    
    def get_element_text_from_xpaths(self, element_name, xpaths, default="?", critical=False):
@@ -212,7 +215,7 @@ class JobScraper:
                element = self.driver.find_element(By.XPATH, xpath)
                text = element.text.strip()
                if text:  # Only return if we actually got text
-                  print(f"  {element_name} was found with XPath #{i+1}: {xpath}")
+                  type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}")
                   return text
          except NoSuchElementException:
                continue  # Try next XPath
@@ -220,7 +223,7 @@ class JobScraper:
       # If we get here, none of the XPaths worked
       if critical:
          self.critical_element_scrape_fails += 1
-         print("\n")
+         type_text("\n")
          raise Exception(f"CRITICAL: Could not find {element_name} with any XPath from this list: {xpaths}")
       
       # If we get here, nothing was found for a non-critical element
@@ -229,7 +232,7 @@ class JobScraper:
    
    def scrape_job_info(self, url):
       """Scrape job information from a single URL"""
-      print(f"\nScraping: {url}")
+      type_text(f"\nScraping: {url}")
       
       try:
          # Keep the webdriver evasion
@@ -277,7 +280,7 @@ class JobScraper:
             location_xpath = "//div[contains(@class, 'jobsearch-JobInfoHeader-subtitle')]//div[contains(@class, 'location')]"
             pay_rate_xpath = "//span[contains(@class, 'salary')]//span"
          else:
-            print(f"Unsupported platform for URL: {url}")
+            type_text(f"Unsupported platform for URL: {url}")
             return None
          
          # Scrape information with error handling
@@ -291,10 +294,10 @@ class JobScraper:
          }
          
          # Print scraped info for verification
-         print(f"  Title: {job_info['Job Title']}")
-         print(f"  Employer: {job_info['Employer']}")
-         print(f"  Location: {job_info['Location']}")
-         print(f"  Pay Rate: {job_info['Pay Rate']}")
+         type_text(f"  Title: {job_info['Job Title']}")
+         type_text(f"  Employer: {job_info['Employer']}")
+         type_text(f"  Location: {job_info['Location']}")
+         type_text(f"  Pay Rate: {job_info['Pay Rate']}")
          
          # Random scrolling after scraping to make it seem less suspicious
          self.human_scroll()
@@ -303,15 +306,17 @@ class JobScraper:
          return job_info
          
       except TimeoutException:
-         print(f"Timeout loading page: {url}")
+         type_text(f"Timeout loading page: {url}")
          return None
       except Exception as e:
-         print(f"🚫 Error scraping {url}: {e}")
+         type_text(f"🚫 Error scraping {url}: {e}")
          return None
    
    def linkedin_login(self):
-      print(f"\n{'='*50}", "\n") # Divider
-      print("🕒 Navigating to 'https://www.linkedin.com/", "\n")
+      type_text(f"\n{'='*50}")
+      type_text("") # Divider
+      type_text("🕒 Navigating to 'https://www.linkedin.com/")
+      type_text("")
       
       try:
          target_url = "https://www.linkedin.com/"
@@ -327,34 +332,34 @@ class JobScraper:
                lambda d: d.execute_script('return document.readyState') == 'complete'
          )
       except Exception as e:
-         print(f"🚫 Error navigating to LinkedIn: {e}")
+         type_text(f"🚫 Error navigating to LinkedIn: {e}")
          return False
       
-      print("🔐 Checking login status...")
+      type_text("🔐 Checking login status...")
       time.sleep(2)
       
       # Check if we're already on the feed page (logged in)
       current_url = self.driver.current_url
       if "linkedin.com/feed" in current_url:
-         print("✅ Already logged in to LinkedIn (on feed page)")
+         type_text("✅ Already logged in to LinkedIn (on feed page)")
          return True
       
       # Check if we're on any other LinkedIn page that indicates we're logged in
       if "linkedin.com" in current_url and any(pattern in current_url for pattern in [
          "/feed", "/mynetwork", "/jobs", "/messaging", "/notifications"
       ]):
-         print("✅ Already logged in to LinkedIn")
+         type_text("✅ Already logged in to LinkedIn")
          return True
       
-      print("🔐 Not logged in, proceeding with login...")
+      type_text("🔐 Not logged in, proceeding with login...")
       
       # Original login logic
       try:
          """Manual login - just open LinkedIn and wait, also checks for if the user is already logged in"""
-         print("MANUAL LOGIN REQUIRED:")
-         print("1. A Firefox window will open")
-         print("2. Sign in to LinkedIn manually")
-         print("3. Come back here and press Enter")
+         type_text("MANUAL LOGIN REQUIRED:")
+         type_text("1. A Firefox window will open")
+         type_text("2. Sign in to LinkedIn manually")
+         type_text("3. Come back here and press Enter")
          
          self.driver.get("https://www.linkedin.com")
          input("Press Enter AFTER you have successfully signed in...")
@@ -362,17 +367,17 @@ class JobScraper:
          return True
          
       except TimeoutException:
-         print("🚫 Login failed or timed out")
+         type_text("🚫 Login failed or timed out")
          # Check if we might be logged in anyway
          current_url = self.driver.current_url
          if "linkedin.com/feed" in current_url or any(pattern in current_url for pattern in [
                "/feed", "/mynetwork", "/jobs", "/messaging"
          ]):
-               print("✅ False negative, actually logged in (detected after timeout)")
+               type_text("✅ False negative, actually logged in (detected after timeout)")
                return True
          return False
       except Exception as e:
-         print(f"🚫 Error during login: {e}")
+         type_text(f"🚫 Error during login: {e}")
          return False
    
    def close(self):
@@ -392,23 +397,23 @@ def load_config(config_file='config.json'):
          The json contents of the config file from the input.
    """
    if not os.path.exists(config_file):
-      print(f"⚠️  Config file '{config_file}' not found. Using default settings.")
+      type_text(f"⚠️  Config file '{config_file}' not found. Using default settings.")
       return {}
    
    if not os.path.isfile(config_file):
-      print(f"⚠️  '{config_file}' is not a file. Using default settings.")
+      type_text(f"⚠️  '{config_file}' is not a file. Using default settings.")
       return {}
    
    try:
       with open(config_file, 'r') as f:
          config = json.load(f)
-      print(f"✅ Config loaded from '{config_file}'")
+      type_text(f"✅ Config loaded from '{config_file}'")
       return config
    except json.JSONDecodeError as e:
-      print(f"🚫 Error parsing config file '{config_file}': {e}. Using default settings.")
+      type_text(f"🚫 Error parsing config file '{config_file}': {e}. Using default settings.")
       return {}
    except Exception as e:
-      print(f"🚫 Error reading config file '{config_file}': {e}. Using default settings.")
+      type_text(f"🚫 Error reading config file '{config_file}': {e}. Using default settings.")
       return {}
 
 def normalize_job_links(links):
@@ -422,8 +427,9 @@ def normalize_job_links(links):
    normalized_links = []
    number_of_successfully_normalized_links = 0
    
-   print(f"\n{'='*50}", "\n") # Divider
-   print("Normalizing Job Listing URLs...")
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
+   type_text("Normalizing Job Listing URLs...")
    
    for link in links:
       # Check if it's a LinkedIn link
@@ -477,9 +483,9 @@ def normalize_job_links(links):
       
       # If it's neither LinkedIn nor Indeed
       else:
-         print(f"Invalid link (not LinkedIn or Indeed): {link}")
+         type_text(f"Invalid link (not LinkedIn or Indeed): {link}")
    
-   print(f"Successfully normalized {number_of_successfully_normalized_links}/{len(links)} of input links.")
+   type_text(f"Successfully normalized {number_of_successfully_normalized_links}/{len(links)} of input links.")
    return normalized_links
 
 def read_job_links(csv_file_path):
@@ -499,7 +505,7 @@ def read_job_links(csv_file_path):
                   job_links.append(row[0].strip())
       return job_links
    except Exception as e:
-      print(f"🚫 Error reading CSV file: {e}")
+      type_text(f"🚫 Error reading CSV file: {e}")
       return []
 
 def remove_duplicate_links(links):
@@ -559,7 +565,7 @@ def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
       return cleaned_links
       
    except Exception as e:
-      print(f"🚫 Error sorting job links by domain: {e}")
+      type_text(f"🚫 Error sorting job links by domain: {e}")
       return []
 # STOP - Job Listing Pre Processing
 
@@ -665,7 +671,7 @@ def normalize_pay_rate_csv(csv_file_path):
       
       # Check if 'Pay Rate' column exists
       if 'Pay Rate' not in df.columns:
-         print(f"🚫 Error: 'Pay Rate' column not found in {csv_file_path}")
+         type_text(f"🚫 Error: 'Pay Rate' column not found in {csv_file_path}")
          return
       
       # Initialize counters
@@ -710,38 +716,38 @@ def normalize_pay_rate_csv(csv_file_path):
       df.to_csv(csv_file_path, index=False)
       
       # Print statistics
-      print(f"Normalization completed for: {csv_file_path}")
-      print(f"Entries fixed: {fixed_count}")
-      print(f"Entries that could not be parsed: {unparseable_count}")
-      print(f"Entries that were '?': {question_mark_count}")
-      print(f"Total entries processed: {len(df)}")
+      type_text(f"Normalization completed for: {csv_file_path}")
+      type_text(f"Entries fixed: {fixed_count}")
+      type_text(f"Entries that could not be parsed: {unparseable_count}")
+      type_text(f"Entries that were '?': {question_mark_count}")
+      type_text(f"Total entries processed: {len(df)}")
       
    except FileNotFoundError:
-      print(f"🚫 Error: File {csv_file_path} not found")
+      type_text(f"🚫 Error: File {csv_file_path} not found")
    except Exception as e:
-      print(f"🚫 Error processing file: {e}")
+      type_text(f"🚫 Error processing file: {e}")
 # STOP - Job Listing Post Processing
 
 # START - Print functions
 def print_applybot_intro():
-   print("")
-   print("╭─────────────────╮")
-   print("│    ApplyBot     │")
-   print("╰─────────────────╯")
-   print("    ∧___∧")
-   print("   ( •ㅅ•) ")
-   print("   /     ♡ ")
-   print("   (   ⌒ ヽ  ")
-   print("   ＼_ﾉ  ＿」  ")
-   print("    ♪ ~ ♪")
-   print("")
-   print("Made by cZAlpha")
-   print("")
+   type_text("")
+   type_text("╭─────────────────╮")
+   type_text("│    ApplyBot     │")
+   type_text("╰─────────────────╯")
+   type_text("    ∧___∧")
+   type_text("   ( •ㅅ•) ")
+   type_text("   /     ♡ ")
+   type_text("   (   ⌒ ヽ  ")
+   type_text("   ＼_ﾉ  ＿」  ")
+   type_text("    ♪ ~ ♪")
+   type_text("")
+   type_text("Made by cZAlpha")
+   type_text("")
 
-def type_text(self, text, delay=0.02):
+def type_text(text, delay=0.01):
    """Print text with typing effect"""
    for char in text:
-      print(char, end='', flush=True)
+      print(char, end='', flush=True)  # ✅ CORRECT - use print()
       time.sleep(delay)
    print()  # New line at the end
 # STOP - Print functions
@@ -757,31 +763,35 @@ def main():
    
    args = parser.parse_args()
    
-   print(f"\n{'='*50}", "\n") # Divider
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
    print_applybot_intro()
    
    # Validate input CSV exists
    if not os.path.exists(args.input_csv): # No input csv file found
-      print(f"\n{'='*50}", "\n") # Divider
-      print(f"🚫 Input CSV file '{args.input_csv}' not found!")
-      print("     In the future, you will not need an input file, as ApplyBot will find jobs for you, but for now, you must source URLs yourself. Place these URLs into a CSV file where each new line contains one link, preferrably with an HTTPS:// in front.")
+      type_text(f"\n{'='*50}")
+      type_text("") # Divider
+      type_text(f"🚫 Input CSV file '{args.input_csv}' not found!")
+      type_text("     In the future, you will not need an input file, as ApplyBot will find jobs for you, but for now, you must source URLs yourself. Place these URLs into a CSV file where each new line contains one link, preferrably with an HTTPS:// in front.")
       return
    else: # Input file was successfully found
       cleaned_links = pre_process_job_links(args.input_csv) # Sort all job links by domain, remove duplicates and normalize links
    
    # Fetch config file contents
-   print(f"\n{'='*50}", "\n") # Divider
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
    config = load_config(args.config)
    
-   print(f"\n{'='*50}") # Divider
+   type_text(f"\n{'='*50}") # Divider
    
    # Read and remove duplicate links
-   print(f"\n🕒 Parsing job links from {args.input_csv}...\n\n")
+   type_text(f"\n🕒 Parsing job links from {args.input_csv}...\n\n")
    if (len(cleaned_links) <= 0): # Error check
-      print(f"🚫 Did not find any job links in {args.input_csv}! Check your input CSV file path, the file contents, and try again.")
+      type_text(f"🚫 Did not find any job links in {args.input_csv}! Check your input CSV file path, the file contents, and try again.")
       return
-   print(f"✅ Found {len(cleaned_links)} unique job links")
-   print(f"\n{'='*50}", "\n") # Divider
+   type_text(f"✅ Found {len(cleaned_links)} unique job links")
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
    
    # Initialize scraper (will call setup_driver, which will open browser)
    scraper = JobScraper(config=config, headless=args.headless)
@@ -801,8 +811,8 @@ def main():
          failed_links = []
          
          for i, link in enumerate(cleaned_links, 1):
-            print(f"\n{'='*50}") # Divider
-            print(f"\nProcessing link {i}/{len(cleaned_links)}")
+            type_text(f"\n{'='*50}") # Divider
+            type_text(f"\nProcessing link {i}/{len(cleaned_links)}")
             
             # Scrape the job info
             job_info = scraper.scrape_job_info(link)
@@ -811,43 +821,43 @@ def main():
                writer.writerow(job_info)
                csvfile.flush()  # Ensure data is written immediately
                successful_scrapes += 1
-               print(f"✓ Successfully scraped and saved")
+               type_text(f"✓ Successfully scraped and saved")
             else:
                failed_links.append(link)
-               print(f"✗ Failed to scrape")
+               type_text(f"✗ Failed to scrape")
                
                # Pause on failure for user input
-               print("Press Enter to continue to next job, or Ctrl+C to exit...")
+               type_text("Press Enter to continue to next job, or Ctrl+C to exit...")
                try:
                   input()
                except KeyboardInterrupt:
-                  print("\nUser interrupted. Saving progress...")
+                  type_text("\nUser interrupted. Saving progress...")
                   break
             
             # Random delay between requests to avoid being blocked
             time.sleep(random.uniform(2, 4))
       
       # Summary after scraping is done 
-      print(f"\n{'='*50}") # Divider
-      print(f"Scraping Complete!")
-      print(f"Successful: {successful_scrapes}")
-      print(f"Failed: {len(failed_links)}")
-      print(f"Output saved to: {args.output_csv}")
+      type_text(f"\n{'='*50}") # Divider
+      type_text(f"Scraping Complete!")
+      type_text(f"Successful: {successful_scrapes}")
+      type_text(f"Failed: {len(failed_links)}")
+      type_text(f"Output saved to: {args.output_csv}")
       
       # Show any links that failed to be scraped
       if failed_links:
-         print(f"\nFailed links:")
+         type_text(f"\nFailed links:")
          for link in failed_links:
-               print(f"  - {link}")
+               type_text(f"  - {link}")
       
       # Post Processing
-      print(f"\n{'='*50}") # Divider
+      type_text(f"\n{'='*50}") # Divider
       normalize_pay_rate_csv(args.output_csv)
    
    except Exception as e:
-      print(f"\n{'='*50}") # Divider
-      print(f"Unexpected error: {e}")
-      print("Press Enter to exit...")
+      type_text(f"\n{'='*50}") # Divider
+      type_text(f"Unexpected error: {e}")
+      type_text("Press Enter to exit...")
       input()
    finally:
       scraper.close()
