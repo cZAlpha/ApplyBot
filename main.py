@@ -246,7 +246,7 @@ class JobScraper:
             lambda driver: driver.execute_script("return document.readyState") == "complete"
          )
          
-         time.sleep(1) # Give it an extra second
+         time.sleep(1.5) # Give it an extra second
          
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
@@ -254,6 +254,7 @@ class JobScraper:
                job_title_xpaths = [
                   "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
                   "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1"
                ]
@@ -744,7 +745,7 @@ def print_applybot_intro():
    type_text("Made by cZAlpha")
    type_text("")
 
-def type_text(text, delay=0.01):
+def type_text(text, delay=0.005):
    """Print text with typing effect"""
    for char in text:
       print(char, end='', flush=True)  # ✅ CORRECT - use print()

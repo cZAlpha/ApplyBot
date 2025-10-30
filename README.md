@@ -19,6 +19,8 @@ Made with love.
 <br><br>
 
 # Todo
+- Fix issue where pay rate is "On Site" or another type of work instead of the pay rate.
+- Have pay rate be normalized before written into output CSV file instead of normalization afterwards
 - Set up a config file that can be changed by the user that will never be committed to Github (other than the initial template one) that contains information like login info., and general settings such as speed and level of anti-bot countermeasures, and a file path to the resume.
   - NOTE: This is currently implemented but for now only has the Firefox profile file path.
 - Reinforce anti-bot countermeasures.
