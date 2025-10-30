@@ -34,6 +34,7 @@ Made with love.
       }
     }
     REASON: Keeping track of the index is totally unnecessary and overcomplicates things. This is because if the xpath array is adjusted post hoc other than just appendations, it will cease to work and break everything.
+- I'm pretty sure that repeat links are no longer being removed. This should be investigated.
 - Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped.
 - Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked
 - Adjust pay rate normalization function to put the mean (average) pay rate in the pay rate column, and place the range in the notes column (notes column may need to be added). NOTE: Sometimes it will do stuff like: "('$47,000', 'Original range: $37,440/yr - $58,240/yr')", which is basically what I want minus the notes column, but it only does this <50% of the time for some reason. Not sure why.
