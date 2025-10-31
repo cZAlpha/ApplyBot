@@ -38,6 +38,7 @@ class JobScraper:
       self.xpath_hits = {} # Object to hold the element_name -> [how_many_hits_xpath_1, ...] | Basically: An object to keep track of what xpaths are hitting the most for what elements being scraped for. This can be used to better curate the scraping of info. from job listings
       self.critical_element_scrape_fails = 0 # These indicate that XPaths MUST be changed to adjust for differing situations
       self.non_critical_element_scrape_fails = 0 # These indicate, if higher than should be expected, that XPaths likely need to be adjusted
+      self.jobs_thrown_out_for_lack_of_security_clearance = 0 # The number of jobs thrown out due to the user not meeting the job's security clearance requirements
    
    # Old version
    # def setup_driver(self, headless):
@@ -272,13 +273,24 @@ class JobScraper:
       else:
          type_text("Critical Element Scraping Failures: " + str(self.critical_element_scrape_fails)) # Number of times where a critical scraping element failed to be scraped
          type_text("Non-Critical Element Scraping Failures: " + str(self.non_critical_element_scrape_fails)) # Number of times where a non-critical scraping element failed to be scraped
+   
+   def get_security_clearance_statistics(self):
+      type_text("SECURITY CLEARANCE STATISTICS")
+      type_text("")
+      if (self.jobs_thrown_out_for_lack_of_security_clearance <= 0): # If no jobs were thrown out due to lack of security clearance
+         type_text("No jobs removed due to lack of a security clearance / too low of a security clearance.")
+      else: 
+         type_text("Number of jobs thrown out due to lack of clearance: " + str(self.jobs_thrown_out_for_lack_of_security_clearance))
    # STOP - Statistics
    
    def setup_driver(self):
       optimized_xpaths = self.get_optimized_xpaths()
       
-      type_text("\nOptimized XPaths (JSON format):")
-      type_text(json.dumps(optimized_xpaths, indent=2))
+      # Check for if the xpath json file exists, only output to console if it does
+      if os.path.exists("xpath_stats.json"):
+         type_text("Optimized XPaths (JSON format):")
+         type_text(json.dumps(optimized_xpaths, indent=2))
+         type_text("")
       
       firefox_options = Options()
       
@@ -442,12 +454,21 @@ class JobScraper:
             return None
          
          # Scrape the job listing information
-         job_title = self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True)
-         employer = self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True)
-         location = self.get_element_text_from_xpaths("Location", location_xpaths)
+         security_clearance = self.detect_security_clearance() # Detected security clearance
+         is_user_cleared =  self.compare_clearance_from_config(security_clearance) # Compares the user's security clearance against the detected security clearance
+         
+         if not is_user_cleared: # If the user is not cleared for the job's security clearance requirements, disregard job posting
+            self.jobs_thrown_out_for_lack_of_security_clearance += 1
+            type_text(f"🚫 Job Thrown Out Due to Lack of Security Clearance!")
+            return "incompatible"
+         
          normalized_pay_rate = normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)) # Normalize pay rate immediately
          pay_rate = normalized_pay_rate[0] # Grab first element of the tuple, that being the pay rate
          pay_rate_notes = normalized_pay_rate[1] # Grab the second element of the tuple, that being the notes
+         
+         job_title = self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True)
+         employer = self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True)
+         location = self.get_element_text_from_xpaths("Location", location_xpaths)
          
          # Structure the scraped information 
          job_info = {
@@ -456,7 +477,9 @@ class JobScraper:
             'Location': location,
             'Pay Rate': pay_rate, 
             'Job Ad': url,
-            'Date Found': datetime.now().strftime("%m/%d/%Y")
+            'Date Found': datetime.now().strftime("%m/%d/%Y"),
+            'Notes': pay_rate_notes, # Any other notes can be appended to this as needed
+            'Security Clearance': security_clearance
          }
          
          # Print scraped info for verification
@@ -464,6 +487,8 @@ class JobScraper:
          type_text(f"  Employer: {job_info['Employer']}")
          type_text(f"  Location: {job_info['Location']}")
          type_text(f"  Pay Rate: {job_info['Pay Rate']}")
+         type_text(f"  Notes: {job_info['Notes']}")
+         type_text(f"  Clearance Level: {job_info['Security Clearance']}")
          
          # Random scrolling after scraping to make it seem less suspicious
          self.human_scroll()
@@ -472,7 +497,7 @@ class JobScraper:
          return job_info
          
       except TimeoutException:
-         type_text(f"Timeout loading page: {url}")
+         type_text(f"🕒 Timeout loading page: {url}")
          return None
       except Exception as e:
          type_text(f"🚫 Error scraping {url}: {e}")
@@ -546,6 +571,125 @@ class JobScraper:
          type_text(f"🚫 Error during login: {e}")
          return False
    
+   def detect_security_clearance(self):
+      """
+      Scan HTML page content for DoD security clearance requirements
+      Returns one of: "None", "Confidential", "Secret", "Top Secret", "Top Secret with Polygraph"
+      """
+      try:
+         # Get the entire page HTML content
+         page_html = self.driver.page_source.lower()
+         
+         # Define clearance terms with specific patterns to minimize false positives
+         clearance_terms = {
+               "Top Secret with Polygraph": [
+                  r"top\s*secret.*polygraph",
+                  r"ts.*sci.*poly",
+                  r"top\s*secret.*sci.*poly",
+                  r"ts/sci.*polygraph",
+                  r"polygraph.*top\s*secret",
+                  r"full\s*scope.*polygraph",
+                  r"fsp.*ts/sci",
+                  r"ts/sci.*fsp"
+               ],
+               "Top Secret": [
+                  r"\btop\s*secret\b",
+                  r"\bts/sci\b",
+                  r"\bts\s*clearance\b",
+                  r"top\s*secret.*clearance",
+                  r"requires.*top\s*secret",
+                  r"must.*have.*top\s*secret",
+                  r"active.*top\s*secret",
+                  r"\bts\b.*security"
+               ],
+               "Secret": [
+                  r"\bsecret\s*clearance\b",
+                  r"requires.*secret",
+                  r"must.*have.*secret",
+                  r"active.*secret",
+                  r"\bsecret.*level",
+                  r"dod.*secret"
+               ],
+               "Confidential": [
+                  r"\bconfidential\s*clearance\b",
+                  r"requires.*confidential",
+                  r"must.*have.*confidential",
+                  r"active.*confidential"
+               ],
+               "Public Trust": [
+                  r"public\s*trust",
+                  r"public\s*trust.*clearance",
+                  r"requires.*public\s*trust",
+                  r"public\s*trust.*position",
+                  r"public\s*trust.*level"
+               ]
+         }
+         
+         # Check for each clearance level in order of highest to lowest
+         clearance_levels = [
+               "Top Secret with Polygraph",
+               "Top Secret", 
+               "Secret",
+               "Confidential",
+               "Public Trust"
+         ]
+         
+         detected_clearance = "None"
+         
+         for level in clearance_levels:
+               for pattern in clearance_terms[level]:
+                  if re.search(pattern, page_html, re.IGNORECASE):
+                     detected_clearance = level
+                     type_text(f"  Security Clearance: Detected '{level}' with pattern: {pattern}")
+                     return detected_clearance
+         
+         return detected_clearance
+         
+      except Exception as e:
+         type_text(f"  Error detecting security clearance: {e}")
+         return "None"
+   
+   def compare_clearance_from_config(self, detected_clearance):
+      """
+      Purpose: Compares the clearance from the user's config file to that of the job listing
+      Inputs:
+         detected_clearance: string, the clearance level that was detected in the job listing
+      Returns:
+         True if user meets clearance requirement, False otherwise
+      """
+      try:
+         # Get clearance from config
+         config_clearance = self.config.get('clearance', 'none').lower()
+         detected_clearance = detected_clearance.lower()
+         
+         # Define clearance hierarchy (lowest to highest)
+         clearance_hierarchy = {
+               "none": 0,
+               "public trust": 1,
+               "confidential": 2,
+               "secret": 3,
+               "top secret": 4,
+               "top secret with polygraph": 5
+         }
+         
+         # Get numeric values for comparison
+         config_level = clearance_hierarchy.get(config_clearance, 0)
+         detected_level = clearance_hierarchy.get(detected_clearance, 0)
+         
+         type_text(f"  Clearance Check: User has '{config_clearance}' ({config_level}), job requires '{detected_clearance}' ({detected_level})")
+         
+         # User meets requirement if their clearance level >= job requirement level
+         if config_level >= detected_level:
+               type_text(f"  ✓ User meets clearance requirement")
+               return True
+         else:
+               type_text(f"  ✗ User does NOT meet clearance requirement")
+               return False
+               
+      except Exception as e:
+         type_text(f"  Error comparing clearance levels: {e}")
+         return True  # Default to True if there's an error to avoid filtering out jobs unnecessarily
+   
    def print_statistics(self):
       type_text("")
       print_applybot_mascot_w_statistics() # Print the mascot with statistics text
@@ -553,7 +697,8 @@ class JobScraper:
       self.get_xpath_statistics()
       type_text("")
       self.get_element_scraping_statistics()
-   
+      type_text("")
+      self.get_security_clearance_statistics()
    def close(self):
       """Close the browser driver"""
       if hasattr(self, 'driver'):
@@ -801,7 +946,18 @@ def normalize_pay_rate(pay_rate_text):
          note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
          return (f"${midpoint_rounded:,.0f}", note)
    
-   # Handle annual salaries with K notation
+   # Handle annual ranges with K notation first (before individual K matches)
+   k_range_pattern = r'\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr\s*[-–—]\s*\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr'
+   k_range_match = re.search(k_range_pattern, text)
+   if k_range_match:
+      annual_low = float(k_range_match.group(1).replace(',', '')) * 1000
+      annual_high = float(k_range_match.group(2).replace(',', '')) * 1000
+      midpoint = (annual_low + annual_high) / 2
+      midpoint_rounded = round(midpoint)
+      note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
+      return (f"${midpoint_rounded:,.0f}", note)
+   
+   # Handle annual salaries with K notation (individual)
    k_match = re.search(r'\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr', text)
    if k_match:
       annual_salary = float(k_match.group(1).replace(',', '')) * 1000
@@ -810,7 +966,7 @@ def normalize_pay_rate(pay_rate_text):
    # Handle annual ranges - improved detection
    # Look for ranges with explicit separators
    # Salary range -> salary midpoint
-   range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr'
+   range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*(?:/?\s*yr)?\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*(?:/?\s*yr)?'
    annual_range_match = re.search(range_pattern, text)
    if annual_range_match:
       annual_low_str = annual_range_match.group(1).replace(',', '').replace('.', '')
@@ -820,7 +976,7 @@ def normalize_pay_rate(pay_rate_text):
       midpoint = (annual_low + annual_high) / 2
       note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
       return (f"${midpoint:,.0f}", note)
-
+   
    # Handle explicit annual salaries - improved pattern
    annual_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr', text)
    if annual_match:
@@ -845,6 +1001,18 @@ def normalize_pay_rate(pay_rate_text):
       midpoint = (annual_low + annual_high) / 2
       note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
       return (f"${midpoint:,.0f}", note)
+   
+   # Handle simple annual ranges without /yr (like "$45,600 - $80,000")
+   simple_range_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})+)\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})+)', text)
+   if simple_range_match:
+      annual_low_str = simple_range_match.group(1).replace(',', '').replace('.', '')
+      annual_high_str = simple_range_match.group(2).replace(',', '').replace('.', '')
+      annual_low = int(annual_low_str)
+      annual_high = int(annual_high_str)
+      midpoint = (annual_low + annual_high) / 2
+      midpoint_rounded = round(midpoint)  # Round to nearest dollar
+      note = f"Original range: ${annual_low:,.0f} - ${annual_high:,.0f}"
+      return (f"${midpoint_rounded:,.0f}", note)
    
    # Also handle simple annual numbers without /yr that look like salaries
    simple_annual_match = re.search(r'^\s*\$\s*(\d{3,})\s*$', text)
@@ -1029,7 +1197,7 @@ def main():
    scraper.linkedin_login()
    
    # Prepare output CSV
-   fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found']
+   fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance']
    
    try:
       with open(args.output_csv, 'w', newline='', encoding='utf-8') as csvfile:
@@ -1038,6 +1206,7 @@ def main():
          
          successful_scrapes = 0
          failed_links = []
+         incompatible_links = [] # Job links whose requirements are incompatible with the user
          
          for i, link in enumerate(cleaned_links, 1):
             type_text(f"\n{'='*50}") # Divider
@@ -1046,14 +1215,17 @@ def main():
             # Scrape the job info
             job_info = scraper.scrape_job_info(link)
             
-            if job_info:
+            if job_info and job_info != "incompatible":  # ← CHECK FOR INCOMPATIBLE EXPLICITLY
                writer.writerow(job_info)
                csvfile.flush()  # Ensure data is written immediately
                successful_scrapes += 1
-               type_text(f"✓ Successfully scraped and saved")
-            else:
+               type_text(f"✅ Successfully scraped and saved")
+            elif job_info == "incompatible":  # ← HANDLE INCOMPATIBLE CASE
+               incompatible_links.append(link) # Adds the link to the list of incompatible job listing links
+               type_text(f"🚫 Job incompatible - skipped due to clearance requirements")
+            else: # Actual failure case (job_info is None), requires user input
                failed_links.append(link)
-               type_text(f"✗ Failed to scrape")
+               type_text(f"🚫 Failed to scrape")
                
                # Pause on failure for user input
                type_text("Press Enter to continue to next job, or Ctrl+C to exit...")
@@ -1069,8 +1241,8 @@ def main():
       # Summary after scraping is done 
       type_text(f"\n{'='*50}") # Divider
       type_text(f"Scraping Complete!")
-      type_text(f"Successful: {successful_scrapes}")
-      type_text(f"Failed: {len(failed_links)}")
+      type_text(f" ✅ Successful: {successful_scrapes}")
+      type_text(f" 🚫 Failed: {len(failed_links)}")
       type_text(f"Output saved to: {args.output_csv}")
       
       # Show any links that failed to be scraped
@@ -1084,7 +1256,7 @@ def main():
    
    except Exception as e:
       type_text(f"\n{'='*50}") # Divider
-      type_text(f"Unexpected error: {e}")
+      type_text(f"🚫 Unexpected error: {e}")
       type_text("Press Enter to exit...")
       input()
    finally:

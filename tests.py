@@ -413,10 +413,6 @@ class TestNormalizePayRate(unittest.TestCase):
       malformed = "invalid-url"
       result = normalize_pay_rate(malformed)
       self.assertEqual(result[0], malformed)
-
-
-class TestNormalizePayRateParameterized(unittest.TestCase):
-   """Parameterized test cases using subTest"""
    
    def test_common_cases_parameterized(self):
       """Parameterized tests for common cases"""
@@ -440,6 +436,8 @@ class TestNormalizePayRateParameterized(unittest.TestCase):
       test_cases = [
          ("$25/hr - $35/hr", "$62,400"),  # Midpoint
          ("$60,000/yr - $80,000/yr", "$70,000"),  # Midpoint
+         ("$77.2K/yr - $115.8K/yr", "$96,500"),  # Midpoint
+         ("$45,600 - $80,000", "$62,800") # Midpoint
       ]
       
       for input_text, expected_midpoint in test_cases:
@@ -447,6 +445,7 @@ class TestNormalizePayRateParameterized(unittest.TestCase):
                result = normalize_pay_rate(input_text)
                self.assertIsInstance(result, tuple)
                self.assertEqual(result[0], expected_midpoint)
+
 
 
 if __name__ == '__main__':

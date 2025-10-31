@@ -18,6 +18,44 @@ Made for use with Firefox (stop using Chrome you weirdo).
 Made with love.
 <br><br>
 
+# Processes
+```
++-----------------------------------------+
+|           APPLY BOT PROCESS             |
++-----------------------------------------+
+                    |
+                    v
+    +-------------------------------+
+    |       1. Job Finding          |
+    |                               |
+    |          <NOT DONE>           |
+    |  - Search on job boards       |
+    |  - Identify target companies  |
+    +-------------------------------+
+                    |
+                    | List of Job URLs/Keywords
+                    v
+    +-------------------------------+
+    |       2. Job Scraping         |
+    |                               |
+    |            <WIP>              |
+    |  - Extract job details        |
+    |  - Parse requirements         |
+    |  - Save to database/file      |
+    +-------------------------------+
+                    |
+                    | Structured Job Data
+                    v
+    +-------------------------------+
+    |      3. Applying to Jobs      |
+    |                               |
+    |          <NOT DONE>           |
+    |  - Review scraped data        |
+    |  - Tailor resume/cover letter |
+    |  - Submit application         |
+    +-------------------------------+
+```
+
 # Todo
 - IMPORTANT: Change the structure of the xpath_stats.json to be:
     "element_name" {
@@ -36,12 +74,8 @@ Made with love.
     REASON: Keeping track of the index is totally unnecessary and overcomplicates things. This is because if the xpath array is adjusted post hoc other than just appendations, it will cease to work and break everything.
 - I'm pretty sure that repeat links are no longer being removed. This should be investigated.
 - Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped.
-- Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked
-- Adjust pay rate normalization function to put the mean (average) pay rate in the pay rate column, and place the range in the notes column (notes column may need to be added). NOTE: Sometimes it will do stuff like: "('$47,000', 'Original range: $37,440/yr - $58,240/yr')", which is basically what I want minus the notes column, but it only does this <50% of the time for some reason. Not sure why.
-- Have the bot search for "top secret clearance", "polygraph", etc. and all related terms and not include it in the output if the config says the user does not have a TS clearance
-- Add skills to the config and write an algorithm to determine how many skills are listed in the job that the user has, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.
-- Set up a config file that can be changed by the user that will never be committed to Github (other than the initial template one) that contains information like login info., and general settings such as speed and level of anti-bot countermeasures, and a file path to the resume.
-  - NOTE: This is currently implemented but for now only has the Firefox profile file path.
+- Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked.
+- Write an algorithm to determine how many skills are listed in the job that the user has from the config, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.
 - Reinforce anti-bot countermeasures.
   - Find a way to bypass Cloudflare anti-bot protection for Indeed
   - Find a way to bypass LinkedIn's captcha on login to make it automatic
@@ -49,7 +83,7 @@ Made with love.
 - Automate application process for Workday websites as much as possible.
   - This will involve account creation, and tracking of login information. This should be done in a file outside of this project so that login information is not sent to Github, likely in a CSV file on the desktop, or wherever and whose file path will be set in a config.
 - Integrate generative AI using Ollama to adjust resume for specific job postings to ensure highest likelihood of bypassing ATS.
-- Add ability for this program to find jobs based on inputted job titles in config file, location, and distance from location as well as other applicable information such as: pay rate, experience level, etc. (this is highly platform dependant)/
+- Add ability for this program to find jobs based on inputted job titles in config file, location, and distance from location as well as other applicable information such as: pay rate, experience level, etc. (this is highly platform dependant)
 - More that I haven't thought of yet.
 <br><br>
 
