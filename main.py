@@ -441,12 +441,20 @@ class JobScraper:
             type_text(f"Unsupported platform for URL: {url}")
             return None
          
-         # Scrape information with error handling
+         # Scrape the job listing information
+         job_title = self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True)
+         employer = self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True)
+         location = self.get_element_text_from_xpaths("Location", location_xpaths)
+         normalized_pay_rate = normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)) # Normalize pay rate immediately
+         pay_rate = normalized_pay_rate[0] # Grab first element of the tuple, that being the pay rate
+         pay_rate_notes = normalized_pay_rate[1] # Grab the second element of the tuple, that being the notes
+         
+         # Structure the scraped information 
          job_info = {
-            'Job Title': self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True),
-            'Employer': self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True),
-            'Location': self.get_element_text_from_xpaths("Location", location_xpaths),
-            'Pay Rate': normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)), # Normalize pay rate immediately
+            'Job Title': job_title,
+            'Employer': employer,
+            'Location': location,
+            'Pay Rate': pay_rate, 
             'Job Ad': url,
             'Date Found': datetime.now().strftime("%m/%d/%Y")
          }
@@ -746,22 +754,24 @@ def normalize_pay_rate(pay_rate_text):
    Inputs:
       pay_rate_text, string, a string containing the column contents of the 'Pay Rate' column from the output of the ApplyBot.
    Output:
-      Returns normalized salary string or "?" for unknown values.
+      Returns a tuple such that:
+         normalized salary string or "?" for unknown values
+         original text, or explanation for when it could not parse
    """
    
    # Handle null/None values and convert to string first
    if pay_rate_text is None or pay_rate_text == "?" or (isinstance(pay_rate_text, str) and pay_rate_text.strip() == "") or pd.isna(pay_rate_text):
-      return "?"
+      return ("?", "Could not find or parse pay rate. ")
    
    text = str(pay_rate_text).lower().strip()
    
    # Check for empty string after stripping
    if text == "":
-      return "?"
+      return ("?", "Could not find or parse pay rate. ")
    
-   # Check for non-salary keywords after conversion
+   # Check for non-salary keywords after conversion (for when it grabs the wrong information, typically when the place it looks for the pay rate does not exist)
    if any(keyword in text for keyword in ["hybrid", "on-site", "site", "remote", "full-time", "full", "part", "part-time", "time"]):
-      return "?"
+      return ("?", "Could not find or parse pay rate.")
    
    # Handle the specific case of "$30/yr" typo (likely meant $30/hr)
    if re.search(r'\$\s*(\d+[.,]?\d*)\s*/?\s*yr', text) and not re.search(r'k\s*/?\s*yr', text):
@@ -772,18 +782,16 @@ def normalize_pay_rate(pay_rate_text):
          # Only convert if it's an unreasonably low annual salary (likely typo)
          if hourly_rate < 100:  # Assuming annual salaries under $100 are typos
                annual_salary = hourly_rate * 40 * 52  # 40 hrs/week * 52 weeks
-               return f"${annual_salary:,.0f}"
+               return (f"${annual_salary:,.0f}", text)
    
    # Handle hourly rates (single or range)
    hourly_matches = re.findall(r'\$\s*(\d+[.,]?\d*)\s*/?\s*hr\b', text)
    if hourly_matches:
-      if len(hourly_matches) == 1:
-         # Single hourly rate
+      if len(hourly_matches) == 1: # Single hourly rate
          hourly_rate = float(hourly_matches[0].replace(',', ''))
          annual_salary = hourly_rate * 40 * 52
-         return f"${annual_salary:,.0f}"
-      elif len(hourly_matches) >= 2:
-         # Handle multiple hourly rates (take first two as range)
+         return (f"${annual_salary:,.0f}", text)
+      elif len(hourly_matches) >= 2: # Handle multiple hourly rates (take first two as range, hourly wage -> salary midpoint)
          hourly_low = float(hourly_matches[0].replace(',', ''))
          hourly_high = float(hourly_matches[1].replace(',', ''))
          annual_low = hourly_low * 40 * 52
@@ -797,8 +805,22 @@ def normalize_pay_rate(pay_rate_text):
    k_match = re.search(r'\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr', text)
    if k_match:
       annual_salary = float(k_match.group(1).replace(',', '')) * 1000
-      return f"${annual_salary:,.0f}"
+      return (f"${annual_salary:,.0f}", text)
    
+   # Handle annual ranges - improved detection
+   # Look for ranges with explicit separators
+   # Salary range -> salary midpoint
+   range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr'
+   annual_range_match = re.search(range_pattern, text)
+   if annual_range_match:
+      annual_low_str = annual_range_match.group(1).replace(',', '').replace('.', '')
+      annual_high_str = annual_range_match.group(2).replace(',', '').replace('.', '')
+      annual_low = int(annual_low_str)
+      annual_high = int(annual_high_str)
+      midpoint = (annual_low + annual_high) / 2
+      note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
+      return (f"${midpoint:,.0f}", note)
+
    # Handle explicit annual salaries - improved pattern
    annual_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr', text)
    if annual_match:
@@ -808,10 +830,11 @@ def normalize_pay_rate(pay_rate_text):
          annual_salary = float(annual_match.group(1).replace(',', ''))
       else:
          annual_salary = int(annual_salary_str)
-      return f"${annual_salary:,.0f}"
+      return (f"${annual_salary:,.0f}", text)
    
    # Handle annual ranges - improved detection
    # Look for ranges with explicit separators
+   # Salary range -> salary midpoint
    range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr'
    annual_range_match = re.search(range_pattern, text)
    if annual_range_match:
@@ -820,36 +843,37 @@ def normalize_pay_rate(pay_rate_text):
       annual_low = int(annual_low_str)
       annual_high = int(annual_high_str)
       midpoint = (annual_low + annual_high) / 2
-      midpoint_rounded = round(midpoint / 1000) * 1000  # Round to nearest thousand for annual ranges
       note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
-      return (f"${midpoint_rounded:,.0f}", note)
+      return (f"${midpoint:,.0f}", note)
    
    # Also handle simple annual numbers without /yr that look like salaries
    simple_annual_match = re.search(r'^\s*\$\s*(\d{3,})\s*$', text)
    if simple_annual_match:
       annual_salary = int(simple_annual_match.group(1))
-      return f"${annual_salary:,.0f}"
+      return (f"${annual_salary:,.0f}", text)
    
    # Handle "up to" hourly rates
    upto_match = re.search(r'up\s+to\s+\$\s*(\d+[.,]?\d*)\s*/?\s*hr', text)
    if upto_match:
       hourly_rate = float(upto_match.group(1).replace(',', ''))
       annual_salary = hourly_rate * 40 * 52
-      return f"${annual_salary:,.0f}"
+      return (f"${annual_salary:,.0f}", text)
    
    # Handle "starting at" formats
    starting_match = re.search(r'starting\s+at\s+\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr', text)
    if starting_match:
       annual_salary = float(starting_match.group(1).replace(',', '')) * 1000
-      return f"${annual_salary:,.0f}"
+      return (f"${annual_salary:,.0f}", text)
    
    # If no patterns match but it's not "?", return original
    if text != "?":
-      return pay_rate_text
+      return (text, "Could not re-format pay rate.")
    
-   return "?"
+   return ("?", "Could not find or parse pay rate.")
 
 def normalize_pay_rate_csv(csv_file_path):
+   "DEPRECATED, WILL NEED ADJUSTING BEFORE IT WILL WORK CORRECTLY!"
+
    """
    Purpose: Read CSV file, normalize 'Pay Rate' column entries, and overwrite the file. Print statistics about the normalization process.
    Inputs:
