@@ -1,3 +1,11 @@
 {
-   "firefox_profiles_path": ""
+   "firefox_profiles_path": "",
+   "resume_path": "",
+   "minimum_salary": "0",
+   "clearance": "none",
+   "skill_keywords": [
+      "Microsoft Word",
+      "Public Speaking",
+      "Writing Reports"
+   ]
 }

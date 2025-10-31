@@ -13,7 +13,7 @@
 # ApplyBot
 A bot to automatically apply to job postings. An attempt to combat the insanely stupid job market using the shotgun method.
 <br><br>
-Made for use with Firefox.
+Made for use with Firefox (stop using Chrome you weirdo).
 <br>
 Made with love.
 <br><br>
@@ -116,5 +116,50 @@ Failed links:
 ```
 
 <br><br>
+
+# config.json
+This is where you can configure how the bot will behave, what it knows about you, etc.
+
+I would suggest, especially if you are going to contribute, that you make your own config. I call mine "my_config.json", hence the usage of that in the main.py file as well as the exclusion of htat in the gitignore.
+
+Format:
+```
+{
+   "firefox_profiles_path": "",
+   "resume_path": "",
+   "minimum_salary": "0",
+   "clearance": "none",
+   "skill_keywords": [
+      "Microsoft Word",
+      "Public Speaking",
+      "Writing Reports"
+   ]
+}
+```
+### firefox_profiles_path
+The absolute path to your firefox profile. 
+#### Notes:
+This is required as of now but should default to a default profile in the future. I would highly suggest simply using the one you use normally, as platforms like LinkedIn and Indeed have information stored about your existing profile and will notice the change. It lessens the likelihood of it catching you. I would also highly suggest making an alternative account with a burner email while scraping information, as you do not need to be on your main account and if that one gets banned, who cares.
+
+### resume_path
+The absolute path to the resume you'd like to use.
+#### Notes:
+This is not yet implemented but in the future will be used while applying to jobs, and will be edited by a local LLM (or possibly one of your choosing, given you have an API key) to better fit the job being applied to.
+
+### minimum_salary
+The numerical minimum annual salary you are willing to work for. DO NOT USE COMMAS (e.x. "50000" NOT "50,000").
+#### Notes:
+This is not yet implemented but in the future will be used while applying to jobs, and will be edited by a local LLM (or possibly one of your choosing, given you have an API key) to better fit the job being applied to.
+
+### clearance
+The type of clearance you have (e.x. "none" by default, other values such as "public trust", "top secret", "top secret with polygraph")
+#### Notes:
+This is not yet implemented but in the future will be used to remove jobs from the job scraping process if you do not possess the minimum clearance.
+
+### skill_keywords
+Skills you possess (examples included by default).
+#### Notes:
+This is not yet implemented but in the future will be used to score jobs that have been scraped on their viability / compatibility with your skillset. This will likely be done with the EXACT SPECIFIC wording you use in your skill_keywords array so be sure to include variants of the same skill/skillset if it written in slightly different ways, otherwise the system will not know. This may be swapped out or bolstered by a local LLM in the future, but likely not.
+
 
 # Good Luck!
