@@ -55,6 +55,9 @@ Made with love.
 
 ## Note From Author
 
+### Your Data
+I'm not Google (stop using Chrome!), this bot does not and will never collect you data.
+
 ### PII
 In all of the text below, I have omitted my name and paths that may include PII and replaced it with an ellipses ("..."). Keep this in mind when troubleshooting and just in general.
 <br><br>
@@ -65,6 +68,10 @@ Its probably mildly important but frankly I do not care, if you see this and fig
 /.../ApplyBot/env/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
   warnings.warn(
 ```
+
+### Questions?
+If you have any questions, reach out to me.
+
 <br><br>
 
 # Sample Usage
@@ -73,8 +80,18 @@ Once you have found a bunch of job listings you'd like to scrape the information
 <br>
 The process of sourcing job listing URLs will eventually be automated.
 ```
-python main.py input.csv output.csv
+.../python .../main.py input.csv output.csv --config="./config.json"
 ```
+
+## input.csv
+The input file. Should contain job listing URLs on each line. The name does not matter, as long as its a CSV.
+
+## output.csv
+The output file. The name does not matter, as long as its a CSV.
+
+## --config="./config.json"
+The config file. This uses the default one, which may or may not work. I would suggest making your own. If you name it "my_config.json", it will not be included in Git.
+
 <br><br>
 
 # Sample Output
