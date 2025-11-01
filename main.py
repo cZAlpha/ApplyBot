@@ -181,20 +181,30 @@ class JobScraper:
       if element_name not in stats:
          stats[element_name] = {}
       
-      # Use a simplified key for the XPath (just the index or a hash)
-      xpath_key = f"xpath_{xpath_index}"  # or use: hashlib.md5(xpath_string.encode()).hexdigest()[:8]
-      
-      if xpath_key not in stats[element_name]:
-         stats[element_name][xpath_key] = {
-               'count': 0,
-               'xpath': xpath_string,
-               'index': xpath_index
+      # Use the actual XPath string as the key (GOOD FORMAT)
+      if xpath_string not in stats[element_name]:
+         stats[element_name][xpath_string] = {
+               'count': 0
          }
       
-      stats[element_name][xpath_key]['count'] += 1
+      stats[element_name][xpath_string]['count'] += 1
       
       # Save updated statistics back to file
       self._save_xpath_stats_to_file(stats)
+   
+   def get_optimized_xpaths(self):
+      """Get optimized XPath lists based on hit statistics"""
+      stats = self._load_xpath_stats_from_file()
+      optimized = {}
+      
+      for element_name, xpaths in stats.items():
+         # Sort by hit count descending
+         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+         
+         # Create optimized list - just the XPath strings in order of most successful
+         optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
+      
+      return optimized
    
    def get_xpath_statistics(self):
       """Print out XPath hit statistics"""
@@ -208,23 +218,8 @@ class JobScraper:
          # Sort by count descending
          sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
          
-         for xpath_key, data in sorted_xpaths:
-               type_text(f"  XPath #{data['index']+1}: {data['count']} hits")
-               type_text(f"    {data['xpath']}")
-   
-   def get_optimized_xpaths(self):
-      """Get optimized XPath lists based on hit statistics"""
-      stats = self._load_xpath_stats_from_file()
-      optimized = {}
-      
-      for element_name, xpaths in stats.items():
-         # Sort by hit count descending
-         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
-         
-         # Create optimized list maintaining original XPath objects
-         optimized[element_name] = [data['xpath'] for _, data in sorted_xpaths]
-      
-      return optimized
+         for xpath_string, data in sorted_xpaths:
+               type_text(f"  {data['count']} hits: {xpath_string}")
    
    def save_xpath_statistics(self, filename="xpath_stats.json"):
       """Save XPath statistics to a file - kept for backward compatibility"""
@@ -261,7 +256,7 @@ class JobScraper:
       """Internal method to save statistics to file"""
       try:
          with open(filename, 'w') as f:
-               json.dump(stats, f, indent=2)
+            json.dump(stats, f, indent=2)
       except Exception as e:
          type_text(f"Error saving XPath statistics to file: {e}")
    
@@ -454,21 +449,20 @@ class JobScraper:
             return None
          
          # Scrape the job listing information
-         security_clearance = self.detect_security_clearance() # Detected security clearance
-         is_user_cleared =  self.compare_clearance_from_config(security_clearance) # Compares the user's security clearance against the detected security clearance
-         
-         if not is_user_cleared: # If the user is not cleared for the job's security clearance requirements, disregard job posting
-            self.jobs_thrown_out_for_lack_of_security_clearance += 1
-            type_text(f"🚫 Job Thrown Out Due to Lack of Security Clearance!")
-            return "incompatible"
-         
-         normalized_pay_rate = normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)) # Normalize pay rate immediately
-         pay_rate = normalized_pay_rate[0] # Grab first element of the tuple, that being the pay rate
-         pay_rate_notes = normalized_pay_rate[1] # Grab the second element of the tuple, that being the notes
-         
          job_title = self.get_element_text_from_xpaths("Job Title", job_title_xpaths, critical=True)
          employer = self.get_element_text_from_xpaths("Employer", employer_xpaths, critical=True)
          location = self.get_element_text_from_xpaths("Location", location_xpaths)
+         normalized_pay_rate = normalize_pay_rate(self.get_element_text_from_xpaths("Pay Rate", pay_rate_xpaths)) # Normalize pay rate immediately
+         pay_rate = normalized_pay_rate[0] # Grab first element of the tuple, that being the pay rate
+         pay_rate_notes = normalized_pay_rate[1] # Grab the second element of the tuple, that being the notes
+         security_clearance = self.detect_security_clearance() # Detected security clearance
+         is_user_cleared =  self.compare_clearance_from_config(security_clearance) # Compares the user's security clearance against the detected security clearance
+         
+         # If the user is not cleared for the job's security clearance requirements, disregard job posting
+         if not is_user_cleared: 
+            self.jobs_thrown_out_for_lack_of_security_clearance += 1
+            type_text(f"🚫 Job Thrown Out Due to Lack of Security Clearance!")
+            return "incompatible"
          
          # Structure the scraped information 
          job_info = {
@@ -479,7 +473,7 @@ class JobScraper:
             'Job Ad': url,
             'Date Found': datetime.now().strftime("%m/%d/%Y"),
             'Notes': pay_rate_notes, # Any other notes can be appended to this as needed
-            'Security Clearance': security_clearance
+            'Security Clearance': security_clearance # If the user does not possess a security clearance, this will always be 'none', as jobs requiring that will be thrown out
          }
          
          # Print scraped info for verification
@@ -600,7 +594,6 @@ class JobScraper:
                   r"requires.*top\s*secret",
                   r"must.*have.*top\s*secret",
                   r"active.*top\s*secret",
-                  r"\bts\b.*security"
                ],
                "Secret": [
                   r"\bsecret\s*clearance\b",
@@ -804,6 +797,7 @@ def normalize_job_links(links):
       # If it's neither LinkedIn nor Indeed
       else:
          type_text(f"Invalid link (not LinkedIn or Indeed): {link}")
+         normalized_links.append(link)
    
    type_text(f"Successfully normalized {number_of_successfully_normalized_links}/{len(links)} of input links.")
    return normalized_links
@@ -859,11 +853,14 @@ def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
       
       # Remove duplicates while preserving order initially
       unique_links = remove_duplicate_links(job_links)
+      # Normalize the links to remove fluff and tracking
       normalized_job_links = normalize_job_links(unique_links)
+      # Remove duplicates again after normalization to remove trickier duplicates
+      final_unique = remove_duplicate_links(normalized_job_links)
       
       # Extract domain from each URL and create tuples of (domain, url)
       domain_url_pairs = []
-      for url in normalized_job_links:
+      for url in final_unique:
          try:
             # Parse the URL to extract the domain
             parsed_url = urlparse(url)

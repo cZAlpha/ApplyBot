@@ -57,22 +57,6 @@ Made with love.
 ```
 
 # Todo
-- IMPORTANT: Change the structure of the xpath_stats.json to be:
-    "element_name" {
-      "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1": {
-        "count": 4
-      }
-    }
-  Instead of:
-    "element_name" {
-      "xpath_2": {
-        "count": 4,
-        "xpath": "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
-        "index": 2
-      }
-    }
-    REASON: Keeping track of the index is totally unnecessary and overcomplicates things. This is because if the xpath array is adjusted post hoc other than just appendations, it will cease to work and break everything.
-- I'm pretty sure that repeat links are no longer being removed. This should be investigated.
 - Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped.
 - Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked.
 - Write an algorithm to determine how many skills are listed in the job that the user has from the config, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.

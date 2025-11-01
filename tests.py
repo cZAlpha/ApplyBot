@@ -4,8 +4,10 @@ import csv
 import pandas as pd
 import re
 import sys
+import tempfile
 from urllib.parse import urlparse
-from main import normalize_pay_rate, type_text, print_applybot_mascot_w_statistics
+from unittest.mock import patch, MagicMock
+from main import pre_process_job_links, read_job_links, remove_duplicate_links, normalize_pay_rate, type_text, print_applybot_mascot_w_statistics
 
 # # Import the functions from your main module
 # # Assuming they are in a file called job_preparation.py
@@ -445,6 +447,339 @@ class TestNormalizePayRate(unittest.TestCase):
                result = normalize_pay_rate(input_text)
                self.assertIsInstance(result, tuple)
                self.assertEqual(result[0], expected_midpoint)
+
+class TestPreProcessJobLinks(unittest.TestCase):
+   
+   def setUp(self):
+      """Set up test CSV files before each test"""
+      self.temp_dir = tempfile.mkdtemp()
+      
+      # Test data for various scenarios
+      self.linkedin_links = [
+         'https://www.linkedin.com/jobs/view/123456789/',
+         'https://linkedin.com/jobs/view/987654321/extra/path',
+         'https://www.linkedin.com/jobs/view/555555555/?some=param',
+      ]
+      
+      self.indeed_links = [
+         'https://www.indeed.com/viewjob?jk=abc123def',
+         'https://indeed.com/viewjob?jk=xyz789uvw&extra=param',
+         'https://www.indeed.com/viewjob?jk=lmn456opq/extra/path',
+      ]
+      
+      self.mixed_domain_links = [
+         'https://apple.com/jobs/123',
+         'https://beta.company.com/jobs/456',
+         'https://alpha.org/careers/789',
+         'https://google.com/positions/101',
+         'https://microsoft.com/careers/112'
+      ]
+      
+      self.duplicate_links = [
+         'https://zebra.com/jobs/1',
+         'https://yahoo.com/careers/2',
+         'https://xerox.com/positions/3',
+         'https://yahoo.com/careers/2',  # duplicate
+         'https://uber.com/jobs/4'
+      ]
+      
+      self.edge_case_links = [
+         'https://www.linkedin.com/jobs/view/123',  # with www
+         'https://linkedin.com/jobs/view/456',      # without www
+         'invalid-url',                             # malformed URL
+         '',                                        # empty string
+         'https://indeed.com/viewjob?jk=789',
+         'http://mixed-protocol.org/jobs/101',      # http instead of https
+         'https://www.indeed.com/viewjob?jk=987'    # another with www
+      ]
+      
+      # Create test CSV files
+      self.test_csv_linkedin = self._create_test_csv('test_linkedin.csv', self.linkedin_links)
+      self.test_csv_indeed = self._create_test_csv('test_indeed.csv', self.indeed_links)
+      self.test_csv_mixed = self._create_test_csv('test_mixed.csv', self.mixed_domain_links)
+      self.test_csv_duplicates = self._create_test_csv('test_duplicates.csv', self.duplicate_links)
+      self.test_csv_edge = self._create_test_csv('test_edge.csv', self.edge_case_links)
+      self.test_csv_empty = self._create_test_csv('test_empty.csv', [])
+   
+   def tearDown(self):
+      """Clean up test files after each test"""
+      for file_path in [
+         self.test_csv_linkedin, self.test_csv_indeed, self.test_csv_mixed,
+         self.test_csv_duplicates, self.test_csv_edge, self.test_csv_empty
+      ]:
+         if os.path.exists(file_path):
+               os.remove(file_path)
+      if os.path.exists(self.temp_dir):
+         os.rmdir(self.temp_dir)
+   
+   def _create_test_csv(self, file_name, links):
+      """Helper method to create test CSV files"""
+      file_path = os.path.join(self.temp_dir, file_name)
+      with open(file_path, 'w', newline='', encoding='utf-8') as file:
+         writer = csv.writer(file)
+         for link in links:
+               writer.writerow([link])
+      return file_path
+
+   @patch('main.type_text')
+   def test_pre_process_links_az_sorting(self, mock_type_text):
+      """Test sorting links by domain in A-Z order"""
+      result = pre_process_job_links(self.test_csv_mixed, ascending_alphabetically=True)
+      
+      # Extract domains for verification
+      domains = []
+      for url in result:
+         try:
+               parsed = urlparse(url)
+               domain = parsed.netloc.lower()
+               if domain.startswith('www.'):
+                  domain = domain[4:]
+               domains.append(domain)
+         except:
+               domains.append('')
+      
+      # Check if domains are sorted A-Z
+      expected_domains = sorted(domains)
+      self.assertEqual(domains, expected_domains, "Domains should be sorted A-Z")
+
+   @patch('main.type_text')
+   def test_pre_process_links_za_sorting(self, mock_type_text):
+      """Test sorting links by domain in Z-A order"""
+      result = pre_process_job_links(self.test_csv_mixed, ascending_alphabetically=False)
+      
+      # Extract domains for verification
+      domains = []
+      for url in result:
+         try:
+               parsed = urlparse(url)
+               domain = parsed.netloc.lower()
+               if domain.startswith('www.'):
+                  domain = domain[4:]
+               domains.append(domain)
+         except:
+               domains.append('')
+      
+      # Check if domains are sorted Z-A
+      expected_domains = sorted(domains, reverse=True)
+      self.assertEqual(domains, expected_domains, "Domains should be sorted Z-A")
+
+   @patch('main.type_text')
+   def test_pre_process_linkedin_normalization(self, mock_type_text):
+      """Test LinkedIn URL normalization"""
+      result = pre_process_job_links(self.test_csv_linkedin, ascending_alphabetically=True)
+      
+      # Check that LinkedIn URLs are properly normalized
+      for url in result:
+         if 'linkedin.com' in url:
+               # Should not have parameters or extra path after the job ID
+               self.assertNotIn('?', url, "LinkedIn URLs should not have query parameters")
+               # Should end with slash after job ID
+               self.assertTrue(url.endswith('/'), "Normalized LinkedIn URLs should end with slash")
+
+   @patch('main.type_text')
+   def test_pre_process_indeed_normalization(self, mock_type_text):
+      """Test Indeed URL normalization"""
+      result = pre_process_job_links(self.test_csv_indeed, ascending_alphabetically=True)
+      
+      # Check that Indeed URLs are properly normalized
+      for url in result:
+         if 'indeed.com' in url:
+               # Should not have extra parameters after job key
+               self.assertNotIn('&', url, "Indeed URLs should not have extra parameters")
+               self.assertNotIn('?extra=', url, "Indeed URLs should not have extra query params")
+
+   @patch('main.type_text')
+   def test_pre_process_duplicate_removal(self, mock_type_text):
+      """Test that duplicates are removed during processing"""
+      result = pre_process_job_links(self.test_csv_duplicates, ascending_alphabetically=True)
+      
+      # Check that duplicates are removed
+      self.assertEqual(len(result), 4, "Duplicates should be removed")
+      
+      # Count occurrences of each unique URL
+      url_counts = {}
+      for url in result:
+         url_counts[url] = url_counts.get(url, 0) + 1
+      
+      # All URLs should appear only once
+      for url, count in url_counts.items():
+         self.assertEqual(count, 1, f"URL {url} should appear only once")
+
+   @patch('main.type_text')
+   def test_pre_process_empty_file(self, mock_type_text):
+      """Test processing with an empty CSV file"""
+      result = pre_process_job_links(self.test_csv_empty, ascending_alphabetically=True)
+      self.assertEqual(result, [], "Empty file should return empty list")
+
+   @patch('main.type_text')
+   def test_pre_process_edge_cases(self, mock_type_text):
+      """Test processing with edge cases including malformed URLs"""
+      result = pre_process_job_links(self.test_csv_edge, ascending_alphabetically=True)
+      
+      # Should handle various edge cases
+      self.assertIn('invalid-url', result, "Should handle malformed URLs")
+      
+      # Empty strings should be filtered out by read_job_links
+      self.assertNotIn('', result, "Empty strings should be filtered out")
+
+   @patch('main.type_text')
+   def test_pre_process_domain_consistency(self, mock_type_text):
+      """Test that www and non-www domains are treated consistently"""
+      result = pre_process_job_links(self.test_csv_edge, ascending_alphabetically=True)
+      
+      linkedin_domains = []
+      indeed_domains = []
+      
+      for url in result:
+         if 'linkedin' in url:
+               parsed = urlparse(url)
+               domain = parsed.netloc.lower()
+               if domain.startswith('www.'):
+                  domain = domain[4:]
+               linkedin_domains.append(domain)
+         elif 'indeed' in url:
+               parsed = urlparse(url)
+               domain = parsed.netloc.lower()
+               if domain.startswith('www.'):
+                  domain = domain[4:]
+               indeed_domains.append(domain)
+      
+      # All LinkedIn domains should be normalized to same base
+      unique_linkedin_domains = set(linkedin_domains)
+      self.assertEqual(len(unique_linkedin_domains), 1, "All LinkedIn domains should normalize to same base")
+      
+      # All Indeed domains should be normalized to same base
+      unique_indeed_domains = set(indeed_domains)
+      self.assertEqual(len(unique_indeed_domains), 1, "All Indeed domains should normalize to same base")
+
+   @patch('main.type_text')
+   def test_pre_process_preserves_non_linkedin_indeed_links(self, mock_type_text):
+      """Test that non-LinkedIn/Indeed links are preserved as-is"""
+      result = pre_process_job_links(self.test_csv_mixed, ascending_alphabetically=True)
+      
+      # Check that non-LinkedIn/Indeed links are preserved
+      for url in result:
+         if 'linkedin.com' not in url and 'indeed.com' not in url:
+               # These should be in the original mixed_domain_links
+               self.assertIn(url, self.mixed_domain_links, "Non-LinkedIn/Indeed links should be preserved")
+   
+   @patch('main.type_text')
+   def test_pre_process_order_preservation_within_domains(self, mock_type_text):
+      """Test that order is preserved for links within the same domain"""
+      # Create test data with multiple links from same domain
+      same_domain_links = [
+         'https://example.com/job1',
+         'https://example.com/job3',
+         'https://example.com/job2',
+         'https://test.com/jobA',
+         'https://test.com/jobC',
+         'https://test.com/jobB'
+      ]
+      
+      test_csv = self._create_test_csv('test_same_domain.csv', same_domain_links)
+      
+      try:
+         result = pre_process_job_links(test_csv, ascending_alphabetically=True)
+         
+         # Extract example.com links in result order
+         example_links = [url for url in result if 'example.com' in url]
+         test_links = [url for url in result if 'test.com' in url]
+         
+         # Order within same domain should be preserved as per original CSV order
+         self.assertEqual(example_links, ['https://example.com/job1', 'https://example.com/job3', 'https://example.com/job2'],
+                        "Order within same domain should be preserved")
+         self.assertEqual(test_links, ['https://test.com/jobA', 'https://test.com/jobC', 'https://test.com/jobB'],
+                        "Order within same domain should be preserved")
+      
+      finally:
+         if os.path.exists(test_csv):
+               os.remove(test_csv)
+   
+   @patch('main.type_text')
+   def test_pre_process_comprehensive_workflow(self, mock_type_text):
+      """Test the complete preprocessing workflow with all operations"""
+      # Create comprehensive test data
+      comprehensive_links = [
+         'https://www.linkedin.com/jobs/view/123456789/?some=param',
+         'https://zebra.com/jobs/1',
+         'https://indeed.com/viewjob?jk=abc123&extra=stuff',
+         'https://apple.com/jobs/123',
+         'https://www.linkedin.com/jobs/view/987654321/extra/path',
+         'https://zebra.com/jobs/1',  # duplicate
+         'https://alpha.org/careers/789',
+      ]
+      
+      test_csv = self._create_test_csv('test_comprehensive.csv', comprehensive_links)
+      
+      try:
+         result = pre_process_job_links(test_csv, ascending_alphabetically=True)
+         
+         # Verify no duplicates
+         self.assertEqual(len(result), len(set(result)), "No duplicates should exist")
+         
+         # Verify sorting order (A-Z)
+         domains = []
+         for url in result:
+               parsed = urlparse(url)
+               domain = parsed.netloc.lower()
+               if domain.startswith('www.'):
+                  domain = domain[4:]
+               domains.append(domain)
+         
+         self.assertEqual(domains, sorted(domains), "Domains should be sorted A-Z")
+         
+         # Verify LinkedIn normalization
+         linkedin_urls = [url for url in result if 'linkedin.com' in url]
+         for url in linkedin_urls:
+               self.assertNotIn('?', url, "LinkedIn URLs should be normalized")
+         
+         # Verify Indeed normalization  
+         indeed_urls = [url for url in result if 'indeed.com' in url]
+         for url in indeed_urls:
+               self.assertNotIn('&extra=', url, "Indeed URLs should be normalized")
+      
+      finally:
+         if os.path.exists(test_csv):
+               os.remove(test_csv)
+   
+   @patch('main.type_text')
+   def test_pre_process_linkedin_tracking_parameter_normalization(self, mock_type_text):
+      """Test that LinkedIn URLs with different tracking parameters get normalized to the same unique link"""
+      # These are the same job listing but with different tracking parameters
+      linkedin_duplicates = [
+         'https://www.linkedin.com/jobs/view/4323925341/?eBP=CwEAAAGaMraZrD-W9mhaOKa7yye6_iZ31epl1KRLpa5dFHuHQxQ9Rnx8-Wcla31rr3eTcX3qiWhVDnV2_OpYkJh1F3ZMeFlYzfiJoCLKeljPudFWFYnb3_VWAZVp-L9AyEkX6766ezKU47e4SpmdRMn0PLXGx4W8u2FUfxW4zx-Izetl0v1CXx8RghLpc8d56UkQvrrVUpgrOKilAXUrjqKTPK5xHqENRLP9bzGYtKFTy5Edei7K0mTr1HFLPthbkm_uArrTedIROycvCjB0kOGR9JPUSp5LRnMidWkKmhdNxJIKlnpY-D3er2AYv7XGqnZaPnpuswOJ-ObwvZjuOXk8asyDRUy5AvmTBh5GBxJDzsbHToscA4VYuOl6bOACq0XOdiFAuMBDAuBKiyLigfQ6pvxJGosXI1b7GSXittUF6gx7S1bFMegRN0v7SotMC1iobfoimEl5e3wJbObIOE51asBNs7bn04FbN3A89d7Zb-lKn_bktXGoYELmP36GdZu4QF6kvDBwnELZ&refId=nNlHFGDJWHiv7TdxNcZzBQ%3D%3D&trackingId=t6TUf%2FvqPhGaYfPQx1hyNQ%3D%3D&trk=flagship3_search_srp_jobs&lipi=urn%3Ali%3Apage%3Ad_flagship3_search_srp_jobs%3BLdRWkXV3QTORcrq1uX8rPA%3D%3D&lici=t6TUf%2FvqPhGaYfPQx1hyNQ%3D%3D',
+         'https://www.linkedin.com/jobs/view/4323925341/?eBP=CwEAAAGaMrhAFRlSXySymqwHExFwiu5aDfVEIeMLQ-GZaHB4N5jwjHU4tv4ruh6oO-umTJFProZl9dwZ4ilJiQ7rjPgQkwIXsERkKW8hKT-xZE0M42LU6pcCC6tWbnHQXHQ_pRFyvWdG3kredRVXiUnKT7NG8dbJO8GyR60kw0b7XDghZoG4afCzANnuL-XDYKvRvJD53s7OEhlo8NWhislgV0CVYO9ddZVwNSknP3G9j_dkXhvQrlA4rhBbV3_gaxByOf4EgJgH2ilENz-Gkmf6d7XBGH7ZOnLTFmtenRF7DLLTuyARhua6V17PQ49voqbzflzESuDACsNDhzkilHot8RQx3td81xEyyRIu6tejRScf9VpD2Vs0tiOxHQU_2huifZuUX2sNaTGt2Ug6n1Z0qlPKx5mnUvpsd9MelO2AsCc8KdEKNnT2fEAyu174IdxDyrRBhK6nnM-L6mhO1I9DqmA2p_OS-ncAsJwDfG9k0JcI5rpQ9PAYYCu9bmyV1UCrtpjyfkWcc_kE4c0&refId=sn1iyIDNubaV%2Brb6siKpbg%3D%3D&trackingId=ki5zKAQKWYRh2wmStXWY7w%3D%3D&trk=flagship3_search_srp_jobs&lipi=urn%3Ali%3Apage%3Ad_flagship3_search_srp_jobs%3BLdRWkXV3QTORcrq1uX8rPA%3D%3D&lici=ki5zKAQKWYRh2wmStXWY7w%3D%3D'
+      ]
+      
+      test_csv = self._create_test_csv('test_linkedin_tracking.csv', linkedin_duplicates)
+      
+      try:
+         result = pre_process_job_links(test_csv, ascending_alphabetically=True)
+         
+         # Debug output to see what we got
+         print(f"DEBUG: Input had {len(linkedin_duplicates)} LinkedIn URLs with tracking")
+         print(f"DEBUG: Output has {len(result)} URLs after processing")
+         for i, url in enumerate(result):
+               print(f"DEBUG: Result {i}: {url}")
+         
+         # The two URLs should normalize to the SAME URL and duplicates should be removed
+         # So we should only have 1 unique LinkedIn URL in the result
+         self.assertEqual(len(result), 1, "Two LinkedIn URLs with same job ID but different tracking should normalize to one unique link")
+         
+         # The normalized URL should be the base LinkedIn URL without tracking parameters
+         normalized_url = result[0]
+         self.assertIn('linkedin.com', normalized_url)
+         self.assertIn('/4323925341/', normalized_url)  # Should contain the job ID
+         self.assertNotIn('?', normalized_url, "Normalized LinkedIn URL should not have query parameters")
+         self.assertTrue(normalized_url.endswith('/'), "Normalized LinkedIn URL should end with slash")
+         
+         # Verify the exact expected format
+         expected_url = 'https://www.linkedin.com/jobs/view/4323925341/'
+         self.assertEqual(normalized_url, expected_url, f"Normalized URL should be {expected_url}")
+      
+      finally:
+         if os.path.exists(test_csv):
+               os.remove(test_csv)
 
 
 
