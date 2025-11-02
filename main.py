@@ -988,7 +988,7 @@ class ApplyBot:
          type_text(f"_container_matches_keywords_greenhouse_io | Error checking container: {e}")
       
       return False
-
+   
    def _fill_dropdown_container_greenhouse_io(self, container, value, fallback_value=None):
       """Fill a found dropdown container"""
       try:
