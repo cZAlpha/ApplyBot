@@ -27,5 +27,9 @@
    "disability": "optout",
    "veteran": "optout",
    "gender": "optout",
-   "race": "optout"
+   "race": "optout",
+   "truth_statement": "Yes",
+   "agree_not_to_use_ai": "Yes",
+   "agree_to_drug_test": "Yes",
+   "agree_to_background_check": "Yes"
 }
