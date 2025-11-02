@@ -1315,7 +1315,91 @@ class ApplyBot:
       if self.config is None:
          type_text("🚫 ERROR | fill_in_application_information | Config not found! ")
          return False
-      if 'greenhouse.io' in url:         
+      
+      if 'linked.com' in url:
+         # Navigate to URL
+         self.driver.get(url)
+         
+         # Wait for page to be fully loaded
+         WebDriverWait(self.driver, 10).until(
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
+         )
+         
+         time.sleep(1.5) # Give it an extra second
+         
+         # type_text("fill_in_application_information | linked.com | filling in application information...")
+         type_text("🚫 ERROR | fill_in_application_information | linked.com | This is not yet available.") # TESTING/TEMP ONLY
+         
+         try:
+            # Contact Info. (should be auto-filled when signed in)
+               # Email addr
+               # Phone country code
+               # Phone number
+            # Resume
+               # Upload resume (depending on type of job)
+            # Additional Questions (RADIAL BUTTONS, DROPDOWNS, TEXT FIELDS, TRICKY)
+               # A lot of these will typically be auto-filled
+               # Questions like: "How many years of work experience do you have with Databases?"
+                  # Basically just ascertaining the # of YOE with certain tools/concepts. Honestly not sure how to approach this other than picking a random number or something
+               # And: "Are you comfortable commuting to this job's location?Are you comfortable commuting to this job's location?"
+                  # This should simply be automatically checked
+               # And: "Do you have experience with PostgreSQL administration in production environments?Do you have experience with PostgreSQL administration in production environments?"
+                  # These types of questions will throw your application out if you dont say yes, better to simply lie about it lol
+               # AND: "Do you have experience with AWS database services (RDS, DynamoDB, Aurora, Redshift)?Do you have experience with AWS database services (RDS, DynamoDB, Aurora, Redshift)? 
+                  # These types of questions will throw your application out if you dont say yes, better to simply lie about it lol
+            # Review
+               # UNCHECK the follow button (why the hell is that even auto-checked in the first place?)
+               # Click the submit application button
+            
+            # type_text("✅ fill_in_application_information | success!")
+            # type_text(f"\n{'='*50}")
+            
+            return True
+            
+         except Exception as e:
+            type_text(f"🚫 ERROR | fill_in_application_information | Error filling application: {e}")
+            raise
+      elif 'indeed.com' in url:
+         # Navigate to URL
+         self.driver.get(url)
+         
+         # Wait for page to be fully loaded
+         WebDriverWait(self.driver, 10).until(
+            lambda driver: driver.execute_script("return document.readyState") == "complete"
+         )
+         
+         time.sleep(1.5) # Give it an extra second
+         
+         # type_text("fill_in_application_information | indeed.com | filling in application information...")
+         type_text("🚫 ERROR | fill_in_application_information | indeed.com | This is not yet available.") # TESTING/TEMP ONLY
+         
+         try:
+            # Add your contact information (should be auto-filled when signed in)
+               # Sometimes phone number isn't auto-filled and is required
+                  # This should be checked for and filled in when required
+            # Review your location details from your profile
+               # Simply hit the "Continue" button
+            # Add a resume for the employer
+               # Click "Resume options"
+               # Click "Upload a different file" (why is it a dropdown if there's one option? Stupid UI/UX)
+               # Upload applicable file
+            # Sometimes: "Answer these questions from the employer" (all of these questions can be totally random, some common ones are listed below)
+               # Interview: "Please list 2-3 dates and time ranges that you could do an interview" (days and times specified in config file)
+               # "Are you authorized to work in the United States?" (this is specified in config file)
+            # Sometimes: "Enter a job that shows relevant experience"
+               # Simply hit the "Continue" button
+            # Review (wait like 5-10 seconds for page to load, or even better use something to wait for the submit button to appear)
+               # Click the submit your application button
+            
+            # type_text("✅ fill_in_application_information | success!")
+            # type_text(f"\n{'='*50}")
+            
+            return True
+            
+         except Exception as e:
+            type_text(f"🚫 ERROR | fill_in_application_information | Error filling application: {e}")
+            raise
+      elif 'greenhouse.io' in url:         
          # Navigate to URL
          self.driver.get(url)
          

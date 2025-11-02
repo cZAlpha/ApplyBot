@@ -196,5 +196,16 @@ Skills you possess (examples included by default).
 #### Notes:
 This is not yet implemented but in the future will be used to score jobs that have been scraped on their viability / compatibility with your skillset. This will likely be done with the EXACT SPECIFIC wording you use in your skill_keywords array so be sure to include variants of the same skill/skillset if it written in slightly different ways, otherwise the system will not know. This may be swapped out or bolstered by a local LLM in the future, but likely not.
 
+...
+
+### dow_available_for_interview
+The day(s) of the week that you are available for interviews, used solely for Indeed.com.
+#### Notes:
+This is not yet implemented but in the future will be used to input into the interview availability question on Indeed.com's easy apply. Options: "Weekday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
+
+### time_available_for_interview
+The time(s) that you are available for interviews, used solely for Indeed.com.
+#### Notes:
+This is not yet implemented but in the future will be used to input into the interview availability question on Indeed.com's easy apply. Options: "Anytime" (8am-9pm), "Morning" (8am - 12pm), "Afternoon" (12pm - 5pm), "Evening" (5pm - 9pm).
 
 # Good Luck!
