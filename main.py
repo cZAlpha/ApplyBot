@@ -1,29 +1,33 @@
-import csv
 import os
-import argparse
-from urllib.parse import urlparse
+import re
 import sys
+import csv
 import time
+import math
+import time
+import json
+import glob
+import random
+import argparse
+import pandas as pd
+from urllib.parse import urlparse
 from datetime import datetime
 from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-import random
-import math
-import time
-import re
-import pandas as pd
-import json
-import glob
 
 
 
-class JobScraper:
+class ApplyBot:
    def __init__(self, config=None, headless=False):
+      if config == None: # No config, throw error
+         type_text("ERROR: No config was passed into ApplyBot. Please check that you have a configuration file and gave it as an argument when calling main.py!")
+         return
       self.config = config
       self.user_agents = [
          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0",
@@ -92,6 +96,52 @@ class JobScraper:
    #    except WebDriverException as e:
    #       print(f"Error setting up Firefox driver: {e}")
    #       raise
+   
+   def setup_driver(self):
+      optimized_xpaths = self.get_optimized_xpaths()
+      
+      # Check for if the xpath json file exists, only output to console if it does
+      if os.path.exists("xpath_stats.json"):
+         type_text("Optimized Job Scraping XPaths (JSON format)")
+         # Optional printing of the optimized paths to the console
+         # type_text(json.dumps(optimized_xpaths, indent=2))
+         type_text("")
+      
+      firefox_options = Options()
+      
+      # Use your EXACT Firefox profile with proper Selenium method
+      import glob
+      profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
+      if profiles:
+         profile_path = profiles[0]
+         type_text("🕒 Opening browser...")
+         type_text("")
+         type_text(f"    Using Firefox profile: {profile_path}")
+         type_text("")
+         firefox_options.profile = profile_path  # Use proper Selenium profile assignment
+      else:
+         # TODO IMPORTANT: Default to random profile or default profile if one is not found
+         type_text("WARNING: No Firefox profile found")
+         type_text("")
+      
+      # CRITICAL: Disable webdriver detection
+      firefox_options.set_preference("dom.webdriver.enabled", False)
+      firefox_options.set_preference("useAutomationExtension", False)
+      firefox_options.set_preference("marionette", True)
+      
+      try:
+         service = Service()
+         self.driver = webdriver.Firefox(service=service, options=firefox_options)
+         self.driver.set_page_load_timeout(30)
+         
+         # Nuclear option for evasion
+         self.driver.execute_script("""
+               Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+               delete navigator.__proto__.webdriver;""")
+         
+      except WebDriverException as e:
+         type_text(f"🚫 Error setting up Firefox driver: {e}")
+         raise
    
    # START - Stealth
    def human_mouse_movement(self, start_element, end_element):
@@ -173,7 +223,7 @@ class JobScraper:
    # STOP - Stealth
    
    # START - Statistics
-   def _track_xpath_hit(self, element_name, xpath_index, xpath_string):
+   def _track_xpath_hit(self, element_name, xpath_string):
       """Track which XPaths are successful for which elements | Statistical tracking function"""
       # Load current statistics from file
       stats = self._load_xpath_stats_from_file()
@@ -278,51 +328,6 @@ class JobScraper:
          type_text("Number of jobs thrown out due to lack of clearance: " + str(self.jobs_thrown_out_for_lack_of_security_clearance))
    # STOP - Statistics
    
-   def setup_driver(self):
-      optimized_xpaths = self.get_optimized_xpaths()
-      
-      # Check for if the xpath json file exists, only output to console if it does
-      if os.path.exists("xpath_stats.json"):
-         type_text("Optimized XPaths (JSON format):")
-         type_text(json.dumps(optimized_xpaths, indent=2))
-         type_text("")
-      
-      firefox_options = Options()
-      
-      # Use your EXACT Firefox profile with proper Selenium method
-      import glob
-      profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
-      if profiles:
-         profile_path = profiles[0]
-         type_text("🕒 Opening browser...")
-         type_text("")
-         type_text(f"    Using Firefox profile: {profile_path}")
-         type_text("")
-         firefox_options.profile = profile_path  # Use proper Selenium profile assignment
-      else:
-         # TODO IMPORTANT: Default to random profile or default profile if one is not found
-         type_text("WARNING: No Firefox profile found")
-         type_text("")
-      
-      # CRITICAL: Disable webdriver detection
-      firefox_options.set_preference("dom.webdriver.enabled", False)
-      firefox_options.set_preference("useAutomationExtension", False)
-      firefox_options.set_preference("marionette", True)
-      
-      try:
-         service = Service()
-         self.driver = webdriver.Firefox(service=service, options=firefox_options)
-         self.driver.set_page_load_timeout(30)
-         
-         # Nuclear option for evasion
-         self.driver.execute_script("""
-               Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-               delete navigator.__proto__.webdriver;""")
-         
-      except WebDriverException as e:
-         type_text(f"🚫 Error setting up Firefox driver: {e}")
-         raise
-   
    def get_element_text_from_xpaths(self, element_name, xpaths, default="?", critical=False):
       """Try multiple XPaths until one works"""
       for i, xpath in enumerate(xpaths):
@@ -332,7 +337,7 @@ class JobScraper:
                text = element.text.strip()
                if text:  # Only return if we actually got text
                   type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}") # Output successful hit to the console                
-                  self._track_xpath_hit(element_name, i, xpath) # Track the successful XPath hit
+                  self._track_xpath_hit(element_name, xpath) # Track the successful XPath hit
                   self.save_xpath_statistics() # Update statistics as it goes
                   return text
          except NoSuchElementException:
@@ -496,6 +501,658 @@ class JobScraper:
       except Exception as e:
          type_text(f"🚫 Error scraping {url}: {e}")
          return None
+   
+   def fill_in_application_information(self, url):
+      """
+         Purpose: Function that handles filling in job application information based on what domain from the input args 'url' is passed in
+         Inputs:
+            url: The url of the job application
+         Output:
+            True if successful, false otherwise
+      """
+      # Check for config existence and None errors
+      if self.config is None:
+         type_text("🚫 ERROR | fill_in_application_information | Config not found! ")
+         return False
+      if 'greenhouse.io' in url:         
+         # Navigate to URL
+         self.driver.get(url)
+         
+         # Wait for page to be fully loaded
+         WebDriverWait(self.driver, 10).until(
+               lambda driver: driver.execute_script("return document.readyState") == "complete"
+         )
+         
+         time.sleep(1.5) # Give it an extra second
+         
+         type_text("fill_in_application_information | greenhouse.io | filling in application information...")
+         
+         try:
+            # Fill basic information fields
+            self._fill_basic_information_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_basic_information_greenhouse_io | ok")
+            
+            # Fill phone information
+            self._fill_phone_information_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_phone_information_greenhouse_io | ok")
+            
+            # Fill location
+            self._fill_location_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_location_greenhouse_io | ok")
+            
+            # Upload resume
+            self._upload_resume_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _upload_resume_greenhouse_io | ok")
+            
+            # Fill optional fields if required
+            self._fill_optional_fields_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_optional_fields_greenhouse_io | ok")
+            
+            # Fill dropdown questions
+            self._fill_dropdown_questions_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_dropdown_questions_greenhouse_io | ok")
+            
+            # Fill text questions
+            self._fill_text_questions_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_text_questions_greenhouse_io | ok")
+            
+            # Fill consent and acknowledgement
+            self._fill_consent_acknowledgement_greenhouse_io(self.config)
+            type_text("fill_in_application_information | _fill_consent_acknowledgement_greenhouse_io | ok")
+            
+            type_text("✅ fill_in_application_information | success!")
+            type_text(f"\n{'='*50}")
+            
+            return True
+            
+         except Exception as e:
+            type_text(f"🚫 ERROR | fill_in_application_information | Error filling application: {e}")
+            raise
+            
+      else:
+         type_text("🚫 ERROR | fill_in_application_information | Unsupported domain for application filling")
+         return False
+   
+   # START - Supporting functions for greenhouse.io
+   def _fill_basic_information_greenhouse_io(self, config):
+      """Fill basic personal information fields"""
+      try:
+         # First Name
+         first_name_field = self.driver.find_element(By.ID, "first_name")
+         self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), first_name_field)
+         first_name_field.clear()
+         self.human_typing(first_name_field, config.get('first_name', ''))
+         type_text("    _fill_basic_information_greenhouse_io | first_name | ok")
+         self.human_delay()
+         
+         # Last Name
+         last_name_field = self.driver.find_element(By.ID, "last_name")
+         self.human_mouse_movement(first_name_field, last_name_field)
+         last_name_field.clear()
+         self.human_typing(last_name_field, config.get('last_name', ''))
+         type_text("    _fill_basic_information_greenhouse_io | last_name | ok")
+         self.human_delay()
+         
+         # Email
+         email_field = self.driver.find_element(By.ID, "email")
+         self.human_mouse_movement(last_name_field, email_field)
+         email_field.clear()
+         self.human_typing(email_field, config.get('email', ''))
+         type_text("    _fill_basic_information_greenhouse_io | email | ok")
+         self.human_delay()
+         
+      except Exception as e:
+         type_text(f"_fill_basic_information_greenhouse_io | Error: {e}")
+         raise
+   
+   def _fill_phone_information_greenhouse_io(self, config):
+      """Fill phone number information"""
+      try:
+         # Try to find and fill country code dropdown if it exists
+         country_selectors = [
+               "input[id*='country'][type='text']",
+               "input[aria-label*='country' i]",
+               "input[aria-labelledby*='country']",
+               "div.select__container input[role='combobox']",
+               "#country"
+         ]
+         
+         country_found = False
+         for selector in country_selectors:
+               try:
+                  country_dropdown = self.driver.find_element(By.CSS_SELECTOR, selector)
+                  self.human_mouse_movement(self.driver.find_element(By.ID, "email"), country_dropdown)
+                  country_dropdown.click()
+                  self.human_delay()
+                  
+                  # Type country name or code from config, default to "United States"
+                  country_value = config.get('country', 'United States')
+                  country_dropdown.send_keys(country_value)
+                  self.human_delay()
+                  
+                  # Press enter to select
+                  country_dropdown.send_keys(Keys.RETURN)
+                  self.human_delay()
+                  country_found = True
+                  break
+               except:
+                  continue
+         
+         if not country_found:
+               type_text("⚠️ WARNING | _fill_phone_information_greenhouse_io | Country code dropdown not found, continuing without setting country")
+         
+         # Phone number field - try multiple selectors
+         phone_selectors = [
+               "input[id*='phone']",
+               "input[type='tel']",
+               "input[aria-label*='phone' i]",
+               "input[aria-labelledby*='phone']",
+               "#phone"
+         ]
+         
+         phone_field = None
+         for selector in phone_selectors:
+               try:
+                  phone_field = self.driver.find_element(By.CSS_SELECTOR, selector)
+                  break
+               except:
+                  continue
+         
+         if phone_field:
+               self.human_mouse_movement(self.driver.find_element(By.ID, "email"), phone_field)
+               phone_field.clear()
+               self.human_typing(phone_field, config.get('phone', ''))
+               self.human_delay()
+         else:
+               type_text("⚠️ WARNING | _fill_phone_information_greenhouse_io | Phone field not found")
+               
+      except Exception as e:
+         type_text(f"_fill_phone_information_greenhouse_io | Error: {e}")
+         # Don't raise, just log and continue
+   
+   def _fill_location_greenhouse_io(self, config):
+      """Fill location information"""
+      try:
+         # Try the main location dropdown first
+         try:
+               location_dropdown = self.driver.find_element(By.ID, "candidate-location")
+               self.human_mouse_movement(self.driver.find_element(By.ID, "phone"), location_dropdown)
+               location_dropdown.click()
+               self.human_delay()
+               
+               # Build location string from city and state
+               city = config.get('city', '')
+               state = config.get('state', '')
+               location_string = f"{city}, {state}" if city and state else city
+               
+               # Type location (this will filter and select from dropdown)
+               location_dropdown.send_keys(location_string)
+               self.human_delay()
+               
+               # Press enter to select first matching option
+               location_dropdown.send_keys(Keys.RETURN)
+               self.human_delay()
+               
+         except:
+               # If main location dropdown not found, try state-specific input
+               type_text("    _fill_location_greenhouse_io | Main location dropdown not found, trying state input...")
+               
+               state_selectors = [
+                  "input[id*='question_'][aria-label*='state' i]",
+                  "input[aria-label*='state' i]",
+                  "input[id*='state']",
+                  "label:contains('state') + input"
+               ]
+               
+               state_field = None
+               for selector in state_selectors:
+                  try:
+                     state_field = self.driver.find_element(By.CSS_SELECTOR, selector)
+                     break
+                  except:
+                     continue
+               
+               if state_field:
+                  self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), state_field)
+                  state_field.clear()
+                  # Only fill state for this format
+                  self.human_typing(state_field, config.get('state', ''))
+                  self.human_delay()
+                  type_text("    _fill_location_greenhouse_io | State field filled successfully")
+               else:
+                  type_text("⚠️ WARNING | _fill_location_greenhouse_io | No location or state field found")
+                  
+      except Exception as e:
+         type_text(f"_fill_location_greenhouse_io | Error: {e}")
+         # Don't raise, just log and continue
+   
+   def _upload_resume_greenhouse_io(self, config):
+      """Upload resume file"""
+      try:
+         # Try multiple selectors for resume input
+         resume_selectors = [
+               "input[id='resume'][type='file']",
+               "input[id*='resume']",
+               "input[type='file']",
+               "input[accept*='.pdf']",
+               "input[accept*='.doc']"
+         ]
+         
+         resume_input = None
+         for selector in resume_selectors:
+               try:
+                  resume_input = self.driver.find_element(By.CSS_SELECTOR, selector)
+                  break
+               except:
+                  continue
+         
+         if not resume_input:
+               raise Exception("🚫 RESUME_NOT_FOUND | No resume input field found on the page")
+         
+         # Use a safe starting element for mouse movement
+         safe_start_elements = [
+               "input[id*='phone']",
+               "input[id*='email']", 
+               "input[type='tel']",
+               "body"
+         ]
+         
+         start_element = None
+         for selector in safe_start_elements:
+               try:
+                  start_element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                  break
+               except:
+                  continue
+         
+         if start_element:
+               self.human_mouse_movement(start_element, resume_input)
+         else:
+               # Fallback to direct click if no safe start element found
+               resume_input.click()
+         
+         # Get resume file path from config
+         resume_path = config.get('resume_path', '')
+         if resume_path and os.path.exists(resume_path):
+               resume_input.send_keys(resume_path)
+               type_text("    _upload_resume_greenhouse_io | Resume uploaded successfully")
+         else:
+               raise Exception(f"🚫 RESUME_FILE_NOT_FOUND | Resume file not found at path: {resume_path}")
+               
+         self.human_delay()
+         
+      except Exception as e:
+         if "RESUME_NOT_FOUND" in str(e) or "RESUME_FILE_NOT_FOUND" in str(e):
+               type_text(f"🚫 ERROR | _upload_resume_greenhouse_io | {e}")
+               raise
+         else:
+               type_text(f"_upload_resume_greenhouse_io | Error: {e}")
+               raise
+   
+   def _fill_optional_fields_greenhouse_io(self, config):
+      """Fill optional fields only if they are required (have asterisk)"""
+      if config.get('linkedin_url', '') == "":
+         type_text("WARNING | _fill_optional_fields_greenhouse_io | You have not specified a linkedin url. Sometimes this isn't required, which is why this is a warning.")
+      
+      try:
+         # More specific selectors for LinkedIn field
+         linkedin_selectors = [
+               "input#question_4201125009",  # Exact ID match
+               "input[id='question_4201125009']",  # Exact ID match alternative
+               "input[id*='question_4201125009']",  # Contains this ID
+               "input[aria-label*='LinkedIn Profile']",  # Exact aria-label match
+               "input[aria-label*='LinkedIn']",  # Partial aria-label match
+         ]
+         
+         for selector in linkedin_selectors:
+               try:
+                  linkedin_field = self.driver.find_element(By.CSS_SELECTOR, selector)
+                  
+                  # Check if required using multiple methods
+                  field_id = linkedin_field.get_attribute('id')
+                  is_required = False
+                  
+                  # Method 1: Check label for asterisk
+                  if field_id:
+                     try:
+                           label = self.driver.find_element(By.CSS_SELECTOR, f"label[for='{field_id}']")
+                           if '*' in label.text:
+                              is_required = True
+                     except:
+                           pass
+                  
+                  # Method 2: Check aria-required attribute
+                  if not is_required and linkedin_field.get_attribute('aria-required') == 'true':
+                     is_required = True
+                  
+                  # Method 3: Check for required class or attributes
+                  if not is_required and ('required' in linkedin_field.get_attribute('class') or 
+                                       linkedin_field.get_attribute('required') is not None):
+                     is_required = True
+                  
+                  if is_required:
+                     self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), linkedin_field)
+                     linkedin_field.click()
+                     linkedin_field.clear()
+                     linkedin_url = config.get('linkedin', config.get('linkedin_url', ''))
+                     self.human_typing(linkedin_field, linkedin_url)
+                     self.human_delay()
+                     type_text("_fill_optional_fields_greenhouse_io | LinkedIn field filled (required)")
+                     return
+                  else:
+                     type_text("_fill_optional_fields_greenhouse_io | LinkedIn field found but not required - skipping")
+                     return
+                     
+               except Exception as e:
+                  continue
+                     
+         type_text("_fill_optional_fields_greenhouse_io | No LinkedIn field found or not required")
+                     
+      except Exception as e:
+         type_text(f"_fill_optional_fields_greenhouse_io | Error: {e}")
+      
+   def _fill_dropdown_questions_greenhouse_io(self, config):
+      """Fill all dropdown questions using keyword matching"""
+      # Define field mappings with flexible keyword matching
+      field_mappings = [
+         {
+               "config_key": "source",
+               "keywords": ["how did you hear", "how you hear", "referral source", "source", "found this job"],
+               "fallback_value": "LinkedIn"  # Common default
+         },
+         {
+               "config_key": "is_18_or_older",
+               "keywords": ["18 or older", "are you 18", "at least 18", "age requirement"],
+               "fallback_value": "Yes"
+         },
+         {
+               "config_key": "work_eligible",
+               "keywords": ["work authorization", "work eligible", "authorized to work", "eligible to work", "employment authorization"],
+               "fallback_value": "Yes"
+         },
+         {
+               "config_key": "requires_sponsorship",
+               "keywords": ["sponsorship", "visa sponsorship", "require sponsorship", "h-1b", "h1b", "tn visa", "e-3 visa", "employment visa"],
+               "fallback_value": "No"
+         },
+         {
+               "config_key": "us_citizen",
+               "keywords": ["us citizen", "u.s. citizen", "citizenship", "permanent resident", "green card"],
+               "fallback_value": "Yes"  # Adjust based on your situation
+         },
+         {
+               "config_key": "education_level",
+               "keywords": ["education", "highest level", "completed education", "degree", "educational background"],
+               "fallback_value": "Bachelor's Degree"  # Common default
+         },
+         {
+               "config_key": "text_consent",
+               "keywords": ["text message", "sms", "text consent", "mobile message"],
+               "fallback_value": "No"  # Usually opt for privacy
+         },
+         {
+               "config_key": "truth_statement",
+               "keywords": ["certify", "truth", "accurate", "complete", "authorize investigation", "background check"],
+               "fallback_value": "Yes"
+         }
+      ]
+      
+      filled_count = 0
+      total_attempted = 0
+      
+      for field_info in field_mappings:
+         config_key = field_info["config_key"]
+         config_value = config.get(config_key, '').strip()
+         
+         # Skip if no value provided in config
+         if not config_value:
+               type_text(f"_fill_dropdown_questions_greenhouse_io | No value provided for '{config_key}' - skipping")
+               continue
+               
+         total_attempted += 1
+         
+         try:
+               # Try to find and fill the dropdown
+               success = self._find_and_fill_dropdown_by_keywords_greenhouse_io(
+                  field_info["keywords"], 
+                  config_value,
+                  field_info.get("fallback_value")
+               )
+               
+               if success:
+                  filled_count += 1
+                  self.human_delay()
+               else:
+                  type_text(f"_fill_dropdown_questions_greenhouse_io | Could not find dropdown for '{config_key}'")
+                  
+         except Exception as e:
+               type_text(f"_fill_dropdown_questions_greenhouse_io | Error with '{config_key}': {e}")
+               continue
+      
+      type_text(f"_fill_dropdown_questions_greenhouse_io | Successfully filled {filled_count}/{total_attempted} dropdown fields")
+
+   def _find_and_fill_dropdown_by_keywords_greenhouse_io(self, keywords, value, fallback_value=None):
+      """Find dropdown by label keywords and fill it"""
+      # First, try to find all dropdown containers
+      dropdown_selectors = [
+         "div.select__container",
+         "div.select-shell",
+         "div[class*='select']",
+         "div.field",
+         "div.application-field"
+      ]
+      
+      for selector in dropdown_selectors:
+         try:
+               containers = self.driver.find_elements(By.CSS_SELECTOR, selector)
+               for container in containers:
+                  if self._container_matches_keywords_greenhouse_io(container, keywords):
+                     return self._fill_dropdown_container_greenhouse_io(container, value, fallback_value)
+         except:
+               continue
+      
+      return False
+
+   def _container_matches_keywords_greenhouse_io(self, container, keywords):
+      """Check if container contains any of the target keywords"""
+      try:
+         # Get all text from container and its children
+         container_text = container.text.lower()
+         
+         # Also check label text specifically
+         label_text = ""
+         try:
+            label = container.find_element(By.CSS_SELECTOR, "label")
+            label_text = label.text.lower()
+         except:
+            pass
+         
+         # Also check aria-label attributes
+         aria_labels = ""
+         try:
+            inputs = container.find_elements(By.CSS_SELECTOR, "[aria-label]")
+            for input_elem in inputs:
+               aria_labels += " " + input_elem.get_attribute("aria-label").lower()
+         except:
+               pass
+         
+         combined_text = f"{container_text} {label_text} {aria_labels}"
+         
+         # Check if any keyword matches
+         for keyword in keywords:
+            if keyword.lower() in combined_text:
+               type_text(f"_fill_dropdown_questions_greenhouse_io | Found dropdown matching keyword: '{keyword}'")
+               return True
+                  
+      except Exception as e:
+         type_text(f"_container_matches_keywords_greenhouse_io | Error checking container: {e}")
+      
+      return False
+
+   def _fill_dropdown_container_greenhouse_io(self, container, value, fallback_value=None):
+      """Fill a found dropdown container"""
+      try:
+         # Try different ways to find the dropdown input/button
+         dropdown_selectors = [
+               "input[type='text']",
+               "div.select__control",
+               "button[aria-haspopup='listbox']",
+               ".select__input",
+               "[role='combobox']"
+         ]
+         
+         dropdown_element = None
+         
+         for selector in dropdown_selectors:
+            try:
+               dropdown_element = container.find_element(By.CSS_SELECTOR, selector)
+               break
+            except:
+               continue
+         
+         if not dropdown_element:
+            type_text("_fill_dropdown_container_greenhouse_io | Could not find dropdown element in container")
+            return False
+         
+         # Click to open dropdown
+         self.human_mouse_movement(container, dropdown_element)
+         dropdown_element.click()
+         self.human_delay()
+         
+         # Now look for the option to select
+         option_selectors = [
+            f"div[role='option']:contains('{value}')",
+            f"li[role='option']:contains('{value}')",
+            f"*[role='option']:contains('{value}')"
+         ]
+         
+         option_found = False
+         
+         for selector in option_selectors:
+            try:
+               # Use XPath for contains text matching since CSS doesn't support :contains
+               options = self.driver.find_elements(By.XPATH, f"//*[@role='option' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{value.lower()}')]")
+               if options:
+                  self.human_mouse_movement(dropdown_element, options[0])
+                  options[0].click()
+                  option_found = True
+                  break
+            except:
+               continue
+         
+         # If exact value not found, try fallback
+         if not option_found and fallback_value:
+            type_text(f"_fill_dropdown_container_greenhouse_io | Exact value '{value}' not found, trying fallback: '{fallback_value}'")
+            for selector in option_selectors:
+               try:
+                  options = self.driver.find_elements(By.XPATH, f"//*[@role='option' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{fallback_value.lower()}')]")
+                  if options:
+                        self.human_mouse_movement(dropdown_element, options[0])
+                        options[0].click()
+                        option_found = True
+                        break
+               except:
+                  continue
+         
+         if option_found:
+               type_text(f"_fill_dropdown_container_greenhouse_io | Successfully selected: '{value}'")
+               return True
+         else:
+               type_text(f"_fill_dropdown_container_greenhouse_io | Could not find option for: '{value}'")
+               return False
+               
+      except Exception as e:
+         type_text(f"_fill_dropdown_container_greenhouse_io | Error filling dropdown: {e}")
+         return False
+   
+   def _select_dropdown_option_greenhouse_io(self, field_id, value):
+      """Select an option from a dropdown"""
+      try:
+         dropdown = self.driver.find_element(By.ID, field_id)
+         self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), dropdown)
+         dropdown.click()
+         self.human_delay()
+         
+         # Type the value to filter options
+         dropdown.send_keys(value)
+         self.human_delay()
+         
+         # Press enter to select
+         dropdown.send_keys(Keys.RETURN)
+         self.human_delay()
+         
+      except Exception as e:
+         type_text(f"_select_dropdown_option_greenhouse_io | Error with {field_id}: {e}")
+         raise
+   
+   def _fill_text_questions_greenhouse_io(self, config):
+      """Fill text-based questions"""
+      text_mappings = {
+         "question_4346839009": "desired_salary",  # Desired salary
+         "question_4346840009": "start_date"  # Available start date
+      }
+      
+      for field_id, config_key in text_mappings.items():
+         try:
+               text_field = self.driver.find_element(By.ID, field_id)
+               self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), text_field)
+               text_field.clear()
+               
+               # Handle start_date conversion from weeks to actual date
+               if config_key == "start_date":
+                  weeks_ahead = config.get(config_key, 0)
+                  start_date = self._calculate_start_date(weeks_ahead)
+                  self.human_typing(text_field, start_date)
+               else:
+                  self.human_typing(text_field, config.get(config_key, ''))
+                  
+               self.human_delay()
+         except Exception as e:
+               type_text(f"_fill_text_questions_greenhouse_io | Error with {field_id}: {e}")
+               continue
+   
+   def _calculate_start_date(self, weeks_ahead):
+      """Calculate start date based on weeks ahead from today"""
+      from datetime import datetime, timedelta
+      
+      # Calculate target date
+      target_date = datetime.now() + timedelta(weeks=weeks_ahead)
+      
+      # Format as MM/DD/YYYY (common US date format)
+      return target_date.strftime("%m/%d/%Y")
+   
+   def _fill_consent_acknowledgement_greenhouse_io(self, config):
+      """Fill consent and acknowledgement fields"""
+      selectors = [
+         "input[id*='question_4346842009']",
+         "input[name*='privacy']",
+         "input[type='checkbox']",
+         ".consent-checkbox",
+         "[data-qa='consent-checkbox']"
+      ]
+      
+      for selector in selectors:
+         try:
+               privacy_checkbox = self.driver.find_element(By.CSS_SELECTOR, selector)
+               self.human_mouse_movement(self.driver.find_element(By.TAG_NAME, "body"), privacy_checkbox)
+               
+               if not privacy_checkbox.is_selected():
+                  privacy_checkbox.click()
+                  
+               self.human_delay()
+               type_text("    _fill_consent_acknowledgement_greenhouse_io | Consent acknowledged")
+               return True
+               
+         except NoSuchElementException:
+               type_text("    _fill_consent_acknowledgement_greenhouse_io | WARNING | Element not found")
+               continue
+         except Exception as e:
+               type_text(f"_fill_consent_acknowledgement_greenhouse_io | Error with selector {selector}: {e}")
+               continue
+      
+      type_text("_fill_consent_acknowledgement_greenhouse_io | No consent box found - continuing")
+      return False
+   # STOP - Supporting functions for greenhouse.io
    
    def linkedin_login(self):
       type_text(f"\n{'='*50}")
@@ -692,6 +1349,7 @@ class JobScraper:
       self.get_element_scraping_statistics()
       type_text("")
       self.get_security_clearance_statistics()
+   
    def close(self):
       """Close the browser driver"""
       if hasattr(self, 'driver'):
@@ -840,7 +1498,7 @@ def remove_duplicate_links(links):
 
 def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
    """
-      Purpose: Sorts the links in the CSV file input by their domain alphabetically, removes duplicates and normalizes links. This is so that the job scraper can handle different platforms such as LinkedIn and Indeed separately
+      Purpose: Sorts the links in the CSV file input by their domain alphabetically, removes duplicates and normalizes links. This is so that ApplyBot can handle different platforms such as LinkedIn and Indeed separately
       Input:
          csv_file_path, the string file path to the CSV file containing the job listing URLs
          ascending_alphabetically, boolean used to dictate if it should be sorted A-Z (default, True), or Z-A (False)
@@ -1187,11 +1845,11 @@ def main():
    type_text(f"\n{'='*50}")
    type_text("") # Divider
    
-   # Initialize scraper (will call setup_driver, which will open browser)
-   scraper = JobScraper(config=config, headless=args.headless)
+   # Initialize ApplyBot (will call setup_driver, which will open browser)
+   ApplyBot = ApplyBot(config=config, headless=args.headless)
    
    # Login manually if needed
-   scraper.linkedin_login()
+   ApplyBot.linkedin_login()
    
    # Prepare output CSV
    fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance']
@@ -1210,7 +1868,7 @@ def main():
             type_text(f"\nProcessing link {i}/{len(cleaned_links)}")
             
             # Scrape the job info
-            job_info = scraper.scrape_job_info(link)
+            job_info = ApplyBot.scrape_job_info(link)
             
             if job_info and job_info != "incompatible":  # ← CHECK FOR INCOMPATIBLE EXPLICITLY
                writer.writerow(job_info)
@@ -1250,6 +1908,9 @@ def main():
       
       # Post Processing
       type_text(f"\n{'='*50}") # Divider
+      
+      # Start to apply to jobs that passed initial scraping and requirements
+      # TODO
    
    except Exception as e:
       type_text(f"\n{'='*50}") # Divider
@@ -1257,9 +1918,31 @@ def main():
       type_text("Press Enter to exit...")
       input()
    finally:
-      scraper.close()
+      ApplyBot.close()
 
 
 
 if __name__ == "__main__":
-   main()
+   #main()
+   
+   # TESTING ONLY
+   parser = argparse.ArgumentParser(description='Scrape job information from links')
+   parser.add_argument('--config', default='config.json', help='Config file path')
+   args = parser.parse_args()
+   
+   link = "https://job-boards.greenhouse.io/roadrunner/jobs/4031672009"
+   
+   # Intro
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
+   print_applybot_intro()
+   
+   # Fetch config file contents
+   type_text(f"\n{'='*50}")
+   type_text("") # Divider
+   config = load_config(args.config)
+   
+   # Initialize ApplyBot (will call setup_driver, which will open browser)
+   ApplyBot = ApplyBot(config=config)
+   
+   ApplyBot.fill_in_application_information(link)

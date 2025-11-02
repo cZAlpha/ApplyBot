@@ -7,5 +7,25 @@
       "Microsoft Word",
       "Public Speaking",
       "Writing Reports"
-   ]
+   ],
+   "first_name": "John",
+   "last_name": "Doe",
+   "email": "johndoe@gmail.com",
+   "phone": "1234567890",
+   "city": "New York",
+   "state": "New York",
+   "linkedin_url": "",
+   "source": "Indeed",
+   "is_18_or_older": "True",
+   "work_eligible": "True",
+   "requires_sponsorship": "False",
+   "us_citizen": "True",
+   "education_level": "Bachelor's Degree",
+   "text_consent": "No",
+   "desired_salary": "0",
+   "start_date": "1",
+   "disability": "optout",
+   "veteran": "optout",
+   "gender": "optout",
+   "race": "optout"
 }
