@@ -15,6 +15,7 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from playwright.sync_api import sync_playwright
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
@@ -45,171 +46,98 @@ class ApplyBot:
       self.jobs_thrown_out_for_lack_of_security_clearance = 0 # The number of jobs thrown out due to the user not meeting the job's security clearance requirements
    
    def setup_driver(self):
-      optimized_xpaths = self.get_optimized_xpaths()
+      self.playwright = sync_playwright().start()
       
-      if os.path.exists("xpath_stats.json"):
-         type_text("Optimized Job Scraping XPaths (JSON format)")
-         type_text("")
+      # Launch browser with enhanced stealth options
+      self.browser = self.playwright.chromium.launch(
+         headless=False,  # Or True for headless
+         args=[
+               '--disable-blink-features=AutomationControlled',
+               '--disable-dev-shm-usage',
+               '--no-first-run',
+               '--disable-default-apps',
+               '--disable-features=TranslateUI',
+               '--disable-ipc-flooding-protection',
+               '--no-default-browser-check',
+         ]
+      )
       
-      firefox_options = Options()
+      # Create context with realistic settings
+      self.context = self.browser.new_context(
+         viewport={'width': random.randint(1920, 1936), 'height': random.randint(1080, 1096)},
+         user_agent=random.choice(self.user_agents),
+         # Enhanced stealth: disable automation indicators
+         has_touch=False,
+         is_mobile=False,
+         # Realistic permissions
+         permissions=[],
+         # Bypass automation detection
+         bypass_csp=True,
+         ignore_https_errors=False,
+         # Realistic timezone and locale
+         timezone_id="America/New_York",
+         locale="en-US",
+         # Realistic color scheme
+         color_scheme="light"
+      )
       
-      # Enhanced profile handling with better validation
-      import glob
-      profile_path = None
-      if 'firefox_profiles_path' in self.config:
-         profiles = glob.glob(self.config['firefox_profiles_path'])
-         if profiles:
-            profile_path = profiles[0]
-            # Verify it's actually a Firefox profile directory
-            if os.path.isdir(profile_path) and any(f.endswith('.sqlite') for f in os.listdir(profile_path)):
-               firefox_options.profile = profile_path
-               type_text("🕒 Opening browser with user profile...")
-               type_text(f"    Profile: {profile_path}")
-               type_text("")
-            else:
-               type_text("⚠️ WARNING: Profile path doesn't contain Firefox profile data")
-               profile_path = None
-      
-      if not profile_path:
-         type_text("⚠️ WARNING: Using temporary profile - may increase detection risk")
-         type_text("")
-      
-      # CRITICAL: Enhanced anti-detection preferences (MUST BE SET BEFORE DRIVER INIT)
-      firefox_options.set_preference("dom.webdriver.enabled", False)
-      firefox_options.set_preference("useAutomationExtension", False)
-      firefox_options.set_preference("marionette", True)
-      
-      # Disable automation indicators
-      firefox_options.set_preference("dom.disable_beforeunload", False)  # Keep this as True can be suspicious
-      firefox_options.set_preference("dom.popup_maximum", 20)  # More realistic value
-      firefox_options.set_preference("dom.disable_open_during_load", False)
-      
-      # Disable automation-related features
-      firefox_options.set_preference("media.peerconnection.enabled", False)  # WebRTC fingerprinting
-      firefox_options.set_preference("privacy.resistFingerprinting", False)  # Disable resistFingerprinting
-      firefox_options.set_preference("privacy.trackingprotection.enabled", False)
-      firefox_options.set_preference("browser.safebrowsing.malware.enabled", False)
-      firefox_options.set_preference("browser.safebrowsing.phishing.enabled", False)
-      
-      # Realistic browser behavior
-      #firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
-      #firefox_options.set_preference("browser.startup.homepage", "about:blank")
-      firefox_options.set_preference("browser.cache.disk.enable", True)
-      firefox_options.set_preference("browser.cache.memory.enable", True)
-      
-      # Disable automation logging
-      firefox_options.set_preference("remote.active-protocols", 2)
-      firefox_options.set_preference("remote.log.level", "Off")
-      
-      # Random but realistic user agent
-      user_agent = random.choice(self.user_agents)
-      firefox_options.set_preference("general.useragent.override", user_agent)
-      type_text(f"    User Agent: {user_agent}")
-      
-      # Realistic window size with slight variation
-      width = random.randint(1920, 1936)
-      height = random.randint(1080, 1096)
-      firefox_options.add_argument(f"--width={width}")
-      firefox_options.add_argument(f"--height={height}")
-      
-      # Additional arguments to reduce detection
-      firefox_options.add_argument("--disable-blink-features=AutomationControlled")
-      firefox_options.add_argument("--disable-features=VizDisplayCompositor")
-      firefox_options.add_argument("--disable-background-timer-throttling")
-      firefox_options.add_argument("--disable-backgrounding-occluded-windows")
-      firefox_options.add_argument("--disable-renderer-backgrounding")
-      
-      try:
-         # Set page load timeout before creating driver
-         service = Service()
-         
-         # Create driver with all options set
-         self.driver = webdriver.Firefox(service=service, options=firefox_options)
-         self.driver.set_page_load_timeout(45)  # Increased timeout
-         
-         # Enhanced evasion script (executed immediately)
-         self.driver.execute_script("""
-            // Remove automation properties
-            Object.defineProperty(navigator, 'webdriver', {
+      # Add stealth scripts to all pages
+      self.context.add_init_script("""
+         // Override the webdriver property
+         Object.defineProperty(navigator, 'webdriver', {
                get: () => undefined,
-            });
-            
-            // Override the permissions API
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
+         });
+         
+         // Override permissions
+         const originalQuery = window.navigator.permissions.query;
+         window.navigator.permissions.query = (parameters) => (
                parameters.name === 'notifications' ?
                   Promise.resolve({ state: Notification.permission }) :
                   originalQuery(parameters)
-            );
-            
-            // Spoof plugins
-            Object.defineProperty(navigator, 'plugins', {
-               get: () => [
-                  {0: {type: "application/pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
-                  {0: {type: "application/x-google-chrome-pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
-                  {0: {type: "application/x-nacl", suffixes: "", description: "Native Client Executable"}, name: "Native Client", filename: "internal-nacl-plugin", description: "Native Client Executable", length: 1}
-               ],
-            });
-            
-            // Spoof languages
-            Object.defineProperty(navigator, 'languages', {
+         );
+         
+         // Spoof plugins
+         Object.defineProperty(navigator, 'plugins', {
+               get: () => [1, 2, 3, 4, 5],
+         });
+         
+         // Spoof languages
+         Object.defineProperty(navigator, 'languages', {
                get: () => ['en-US', 'en'],
-            });
-            
-            // Spoof platform
-            Object.defineProperty(navigator, 'platform', {
-               get: () => 'Win32',
-            });
-            
-            // Remove evidence of automation
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-         """)
-         
-         # Additional CDP commands for Firefox (if available)
-         try:
-            # These help mask automation in newer Firefox versions
-            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-               'userAgent': user_agent,
+         });
+      """)
+      
+      self.page = self.context.new_page()
+      
+      # Block resources that might detect automation (too aggressive, might block images and fonts that are needed)
+      # self.page.route("**/*", lambda route: route.abort() 
+      #    if route.request.resource_type in ["image", "font", "media"] 
+      #    else route.continue_()
+      # )
+      
+      # Randomize mouse movements
+      self.page.mouse.move(
+         random.randint(0, 100), 
+         random.randint(0, 100)
+      )
+      
+      # Additional CDP commands for extra stealth
+      try:
+         self.page.context.cdp_session.send('Network.setUserAgentOverride', {
+               'userAgent': random.choice(self.user_agents),
                'platform': 'Win32'
-            })
-         except:
-            pass  # CDP not available in all Firefox versions
-         
-         type_text("✅ Browser setup complete with enhanced anti-bot-detection")
-         type_text("")
-         
-      except WebDriverException as e:
-         type_text(f"🚫 Error setting up Firefox driver: {e}")
-         raise
+         })
+      except:
+         pass
+      
+      type_text("✅ Browser setup complete with Playwright enhanced anti-bot-detection")
    
    # START - Stealth
    def human_mouse_movement(self, start_element, end_element):
-      """Simulate human-like mouse movement between elements"""
-      try:
-         # Get element positions
-         start_loc = start_element.location
-         end_loc = end_element.location
-         
-         # Generate curved path using Bezier
-         control_x = (start_loc['x'] + end_loc['x']) / 2 + random.randint(-50, 50)
-         control_y = (start_loc['y'] + end_loc['y']) / 2 + random.randint(-50, 50)
-         
-         # Move through curve points
-         for t in [i/10 for i in range(1, 11)]:
-            x = (1-t)**2 * start_loc['x'] + 2*(1-t)*t * control_x + t**2 * end_loc['x']
-            y = (1-t)**2 * start_loc['y'] + 2*(1-t)*t * control_y + t**2 * end_loc['y']
-            
-            # Add randomness to movement
-            x += random.randint(-2, 2)
-            y += random.randint(-2, 2)
-            
-            self.driver.execute_script(f"window.mouseX = {x}; window.mouseY = {y};")
-            time.sleep(random.uniform(0.01, 0.03))
-            
-      except Exception as e:
-         type_text(f"Mouse movement failed: {e}")
+      # Use Playwright's built-in human-like movement
+      start_element.hover()
+      self.page.wait_for_timeout(random.randint(100, 500))
+      end_element.hover()
    
    def human_scroll(self, scroll_amount=None):
       """Simulate human-like scrolling"""
@@ -223,41 +151,42 @@ class ApplyBot:
       for i in range(chunks):
          # Vary scroll speed and direction slightly
          current_chunk = chunk_size * random.uniform(0.8, 1.2)
-         self.driver.execute_script(f"window.scrollBy(0, {current_chunk});")
+         self.page.evaluate(f"window.scrollBy(0, {current_chunk});")
          
          # Random pauses between scrolls
-         time.sleep(random.uniform(0.1, 0.4))
+         self.page.wait_for_timeout(random.randint(100, 400))
       
       # Sometimes scroll back a bit
       if random.random() > 0.7:
-         time.sleep(random.uniform(0.5, 1.5))
+         self.page.wait_for_timeout(random.randint(500, 1500))
          back_scroll = random.randint(50, 200)
-         self.driver.execute_script(f"window.scrollBy(0, -{back_scroll});")
-   
+         self.page.evaluate(f"window.scrollBy(0, -{back_scroll});")
+
    def human_typing(self, element, text):
       """Simulate human-like typing with variable speed"""
+      element.click()  # Focus the element first
       for char in text:
-         element.send_keys(char)
+         element.press(char)
          # Variable typing speed
-         time.sleep(random.uniform(0.08, 0.25))
+         self.page.wait_for_timeout(random.randint(80, 250))
          
          # Occasional pauses like a human
          if random.random() > 0.95:
-               time.sleep(random.uniform(0.5, 1.2))
+               self.page.wait_for_timeout(random.randint(500, 1200))
    
    def random_behavior(self):
       """Perform random human-like behaviors"""
       behaviors = [
          lambda: self.human_scroll(random.randint(100, 400)),
-         lambda: time.sleep(random.uniform(1, 3)),
-         lambda: self.driver.execute_script("window.scrollBy(0, -100);"),
+         lambda: self.page.wait_for_timeout(random.randint(1000, 3000)),
+         lambda: self.page.evaluate("window.scrollBy(0, -100);"), 
       ]
       
       # Perform 1-3 random behaviors
       for _ in range(random.randint(1, 3)):
          random.choice(behaviors)()
-         time.sleep(random.uniform(0.5, 1.5))
-   
+         self.page.wait_for_timeout(random.randint(500, 1500))
+
    def human_delay(self):
       """Random delay between actions"""
       time.sleep(random.uniform(1.5, 4.0))
@@ -267,10 +196,10 @@ class ApplyBot:
    def _track_xpath_hit(self, element_name, xpath_string, domain=None):
       """Track which XPaths are successful for which elements | Statistical tracking function"""
       # Extract domain from current URL if not provided
-      if domain is None and hasattr(self, 'driver') and self.driver.current_url:
+      if domain is None and hasattr(self, 'driver') and self.page.url:
          try:
             from urllib.parse import urlparse
-            parsed_url = urlparse(self.driver.current_url)
+            parsed_url = urlparse(self.page.url)
             domain = parsed_url.netloc
          except:
             domain = "unknown"
@@ -468,11 +397,11 @@ class ApplyBot:
    def search_terms_in_page(self, terms):
       """Search for multiple terms in page, return found ones"""
       if self.driver:
-         page_text = self.driver.page_source.lower()
+         page_html = self.page.content().lower()
          found = []
          
          for term in terms:
-            if term.lower() in page_text:
+            if term.lower() in page_html:
                found.append(term)
          
          return found
@@ -486,14 +415,15 @@ class ApplyBot:
       for i, xpath in enumerate(xpaths):
          try:
             time.sleep(0.1)  # Short delay between attempts
-            element = self.driver.find_element(By.XPATH, xpath)
-            text = element.text.strip()
+            element = self.page.query_selector(f"xpath={xpath}")
+            if element:
+               text = element.text_content().strip()
             if text:  # Only return if we actually got text
                type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}") # Output successful hit to the console                
                self._track_xpath_hit(element_name, xpath) # Track the successful XPath hit
                self.save_xpath_statistics() # Update statistics as it goes
                return text
-         except NoSuchElementException:
+         except Exception:
             continue  # Try next XPath
       
       # If we get here, none of the XPaths worked
@@ -511,19 +441,12 @@ class ApplyBot:
       type_text(f"\nScraping: {url}")
       
       try:
-         # Keep the webdriver evasion
-         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+         # Realistic navigation with delays
+         self.page.goto(url, wait_until="networkidle")
          
-         # Navigate to URL
-         self.driver.get(url)
-         
-         # Wait for page to be fully loaded
-         WebDriverWait(self.driver, 10).until(
-            lambda driver: driver.execute_script("return document.readyState") == "complete"
-         )
-         
-         time.sleep(1.5) # Give it an extra second
-         
+         # Add random delays to mimic human behavior
+         self.page.wait_for_timeout(random.randint(1000, 3000))
+                  
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
             # Arrays of XPaths for each field
@@ -1760,25 +1683,21 @@ class ApplyBot:
       try:
          target_url = "https://www.linkedin.com/"
          
-         # Clear any existing pages
-         self.driver.execute_script("window.stop();")
+         # Navigate to LinkedIn using Playwright
+         self.page.goto(target_url, wait_until="networkidle")
          
-         # Navigate to LinkedIn
-         self.driver.get(target_url)
+         # Add random delay
+         self.page.wait_for_timeout(random.randint(1000, 3000))
          
-         # Wait for navigation to complete
-         WebDriverWait(self.driver, timeout=10).until(
-               lambda d: d.execute_script('return document.readyState') == 'complete'
-         )
       except Exception as e:
          type_text(f"🚫 Error navigating to LinkedIn: {e}")
          return False
       
       type_text("🔐 Checking login status...")
-      time.sleep(2)
+      self.page.wait_for_timeout(2000)
       
       # Check if we're already on the feed page (logged in)
-      current_url = self.driver.current_url
+      current_url = self.page.url
       if "linkedin.com/feed" in current_url:
          type_text("✅ Already logged in to LinkedIn (on feed page)")
          return True
@@ -1792,29 +1711,18 @@ class ApplyBot:
       
       type_text("🔐 Not logged in, proceeding with login...")
       
-      # Original login logic
+      # Manual login logic
       try:
-         """Manual login - just open LinkedIn and wait, also checks for if the user is already logged in"""
          type_text("MANUAL LOGIN REQUIRED:")
-         type_text("1. A Firefox window will open")
+         type_text("1. A browser window will open")
          type_text("2. Sign in to LinkedIn manually")
          type_text("3. Come back here and press Enter")
          
-         self.driver.get("https://www.linkedin.com")
+         self.page.goto("https://www.linkedin.com")
          input("Press Enter AFTER you have successfully signed in...")
          self.signed_in = True
          return True
          
-      except TimeoutException:
-         type_text("🚫 Login failed or timed out")
-         # Check if we might be logged in anyway
-         current_url = self.driver.current_url
-         if "linkedin.com/feed" in current_url or any(pattern in current_url for pattern in [
-               "/feed", "/mynetwork", "/jobs", "/messaging"
-         ]):
-               type_text("✅ False negative, actually logged in (detected after timeout)")
-               return True
-         return False
       except Exception as e:
          type_text(f"🚫 Error during login: {e}")
          return False
@@ -1826,7 +1734,7 @@ class ApplyBot:
       """
       try:
          # Get the entire page HTML content
-         page_html = self.driver.page_source.lower()
+         page_html = self.page.content().lower()
          
          # Define clearance terms with specific patterns to minimize false positives
          clearance_terms = {
@@ -1951,8 +1859,10 @@ class ApplyBot:
    
    def close(self):
       """Close the browser driver"""
-      if hasattr(self, 'driver'):
-         self.driver.quit()
+      if hasattr(self, 'browser'):
+         self.browser.close()
+      if hasattr(self, 'playwright'):
+         self.playwright.stop()
       self.print_statistics() # Print statistics
 
 
