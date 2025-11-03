@@ -49,7 +49,7 @@ Made with love.
     +-------------------------------+
     |      3. Applying to Jobs      |
     |                               |
-    |          <NOT DONE>           |
+    |          <WIP>           |
     |  - Review scraped data        |
     |  - Tailor resume/cover letter |
     |  - Submit application         |
@@ -92,7 +92,7 @@ If you have any questions, reach out to me.
 
 <br><br>
 
-# Sample Usage
+# Sample Usage (OUTDATED)
 
 Once you have found a bunch of job listings you'd like to scrape the information from, put it in a spreadsheet of your choosing, ensuring that all listing URLs are on different lines. Then export that as a CSV file. Below, this is called 'input.csv'. You can then designate the name for the output file, below this is called 'output.csv'.
 <br>
@@ -112,7 +112,7 @@ The config file. This uses the default one, which may or may not work. I would s
 
 <br><br>
 
-# Sample Output
+# Sample Output (OUTDATED)
 ```
 Reading job links...
 Found 41 unique job links
@@ -152,6 +152,18 @@ Failed links:
 
 <br><br>
 
+# AI Resume Tailoring Notes (WIP)
+
+1. base resume (from config) 
+2. feed base resume into LLM with prompt that includes the job description and/or keywords from the job description
+3. adjusts the bullet points in your resume while keeping the # of chars per line the same as to avoid formatting issues
+4. Generates new resume pdf and shows user the PDF for approval (this could be a flag in the main.py args to avoid having to approve)
+5. Uses the tailored resume to apply to the job
+6. Places new resume pdf in a folder such that /<employer>/<job_title>/<yourbaseresumename>_<job_title>.pdf
+ 
+
+<br><br>
+
 # config.json
 This is where you can configure how the bot will behave, what it knows about you, etc.
 
@@ -168,7 +180,34 @@ Format:
       "Microsoft Word",
       "Public Speaking",
       "Writing Reports"
-   ]
+   ],
+   "first_name": "John",
+   "last_name": "Doe",
+   "email": "johndoe@gmail.com",
+   "phone": "1234567890",
+   "city": "New York",
+   "state": "New York",
+   "zip_code": "10001",
+   "linkedin_url": "",
+   "source": "Indeed",
+   "is_18_or_older": "True",
+   "work_eligible": "True",
+   "requires_sponsorship": "False",
+   "us_citizen": "True",
+   "education_level": "Bachelor's Degree",
+   "text_consent": "No",
+   "desired_salary": "0",
+   "start_date": "1",
+   "disability": "optout",
+   "veteran": "optout",
+   "gender": "optout",
+   "race": "optout",
+   "truth_statement": "Yes",
+   "agree_not_to_use_ai": "Yes",
+   "agree_to_drug_test": "Yes",
+   "agree_to_background_check": "Yes",
+   "dow_available_for_interview": "Weekday",
+   "time_available_for_interview": "Anytime"
 }
 ```
 ### firefox_profiles_path
@@ -189,14 +228,151 @@ This is not yet implemented but in the future will be used while applying to job
 ### clearance
 The type of clearance you have (e.x. "none" by default, other values such as "public trust", "top secret", "top secret with polygraph")
 #### Notes:
-This is not yet implemented but in the future will be used to remove jobs from the job scraping process if you do not possess the minimum clearance.
+Used to remove jobs from the job scraping process if you do not possess the minimum clearance.
 
 ### skill_keywords
 Skills you possess (examples included by default).
 #### Notes:
-This is not yet implemented but in the future will be used to score jobs that have been scraped on their viability / compatibility with your skillset. This will likely be done with the EXACT SPECIFIC wording you use in your skill_keywords array so be sure to include variants of the same skill/skillset if it written in slightly different ways, otherwise the system will not know. This may be swapped out or bolstered by a local LLM in the future, but likely not.
+This is not yet implemented but in the future will be used to score jobs that have been scraped on their viability / compatibility with your skillset. This may also be used to prompt the AI model that will tailor your resume so that it lies about your skills and experience as little as possible. This will likely be done with the EXACT SPECIFIC wording you use in your skill_keywords array so be sure to include variants of the same skill/skillset if it written in slightly different ways, otherwise the system will not know. This may be swapped out or bolstered by a local LLM in the future, but likely not.
 
-...
+### first_name
+Your first name.
+#### Notes:
+Used to autofill application forms.
+
+### last_name
+Your last name.
+#### Notes:
+Used to autofill application forms.
+
+### email
+Your email address.
+#### Notes:
+Used to autofill application forms.
+
+### phone
+Your phone number.
+#### Notes:
+Used to autofill application forms.
+
+### country
+Your country of residence (e.x. United States by default)
+#### Notes:
+Used to autofill application forms.
+
+### address
+Your street address.
+#### Notes:
+Used to autofill application forms.
+
+### city
+Your city of residence.
+#### Notes:
+Used to autofill application forms.
+
+### state
+Your state of residence.
+#### Notes:
+Used to autofill application forms.
+
+### zip_code
+Your zip code.
+#### Notes:
+Used to autofill application forms.
+
+### linkedin_url
+Your LinkedIn profile URL.
+#### Notes:
+Used to autofill application forms.
+
+### source
+Where you heard about the job application system.
+#### Notes:
+Used to autofill application forms. Default: "Indeed", but you can do whatever you want, as long as it would be listed in a dropdown commonly.
+
+### is_18_or_older
+Whether you are 18 years or older.
+#### Notes:
+Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+
+### work_eligible
+Whether you are eligible to work in the country.
+#### Notes:
+Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+
+### requires_sponsorship
+Whether you require visa sponsorship.
+#### Notes:
+Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+
+### us_citizen
+Whether you are a US citizen.
+#### Notes:
+Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+
+### education_level
+Your highest education level.
+#### Notes:
+Used to autofill application forms. Options: "Bachelor's Degree", "Master's Degree", "Doctorate", "High School", etc.
+
+### text_consent
+Whether you consent to text communications.
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No". Always say no, why would you want these weirdos texting your phone?
+
+### desired_salary
+Your desired annual salary. This will be the value auto-filled into applications, NOT what will determine if a job listing will be thrown out when scraping.
+#### Notes:
+Used to autofill application forms. DO NOT USE COMMAS (e.x. "50000" NOT "50,000").
+
+### start_date
+When you can start working.
+#### Notes:
+Used to autofill application forms. Options: "1", "2", etc., this dictates how many WEEKS from today's date that your availability will be.
+
+### disability
+Disability status disclosure.
+#### Notes:
+Used to autofill EEO forms. Options: "optout", "Yes", "No"<br>
+I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal, plus if they're able to see your picked option here, they'll likely throw your application out.
+
+### veteran
+Veteran status disclosure.
+#### Notes:
+Used to autofill EEO forms. Options: "optout", "Yes", "No"<br>
+I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+
+### gender
+Gender disclosure.
+#### Notes:
+Used to autofill EEO forms. Options: "optout", "Male", "Female", "Non-binary"<br>
+I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+
+### race
+Race/ethnicity disclosure.
+#### Notes:
+Used to autofill EEO forms. Options: "optout", "White", "Black", "Hispanic", "Asian", etc. <br>
+I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+
+### truth_statement
+Affirmation that application information is truthful.
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+
+### agree_not_to_use_ai
+Agreement not to use AI for work tasks.
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+
+### agree_to_drug_test
+Agreement to submit to drug testing.
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+
+### agree_to_background_check
+Agreement to background check.
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
 
 ### dow_available_for_interview
 The day(s) of the week that you are available for interviews, used solely for Indeed.com.
