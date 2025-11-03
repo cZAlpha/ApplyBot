@@ -44,145 +44,141 @@ class ApplyBot:
       self.non_critical_element_scrape_fails = 0 # These indicate, if higher than should be expected, that XPaths likely need to be adjusted
       self.jobs_thrown_out_for_lack_of_security_clearance = 0 # The number of jobs thrown out due to the user not meeting the job's security clearance requirements
    
-   # Old version
-   # def setup_driver(self, headless):
-   #    """Setup Firefox driver with options"""
-   #    firefox_options = Options()
-      
-   #    # Enhanced anti-detection settings
-   #    firefox_options.set_preference("dom.webdriver.enabled", False)
-   #    firefox_options.set_preference("useAutomationExtension", False)
-   #    firefox_options.set_preference("privacy.trackingprotection.enabled", False)
-   #    firefox_options.set_preference("privacy.resistFingerprinting", False)  # Disable resistFingerprinting for consistency
-   #    firefox_options.set_preference("privacy.clearOnShutdown.offlineApps", False)
-   #    firefox_options.set_preference("privacy.clearOnShutdown.passwords", False)
-   #    firefox_options.set_preference("privacy.clearOnShutdown.siteSettings", False)
-   #    firefox_options.set_preference("browser.cache.disk.enable", False)
-   #    firefox_options.set_preference("browser.cache.memory.enable", False)
-   #    firefox_options.set_preference("browser.sessionstore.resume_from_crash", False)
-      
-   #    # More realistic user profile
-   #    firefox_options.set_preference("browser.startup.homepage", "about:blank")
-   #    firefox_options.set_preference("startup.homepage_welcome_url", "about:blank")
-   #    firefox_options.set_preference("startup.homepage_welcome_url.additional", "about:blank")
-      
-   #    # Use a more realistic window size
-   #    firefox_options.add_argument("--width=1920")
-   #    firefox_options.add_argument("--height=1080")
-      
-   #    if headless:
-   #       firefox_options.add_argument("--headless")
-      
-   #    # Set user agent after all other preferences
-   #    firefox_options.set_preference("general.useragent.override", random.choice(self.user_agents))
-      
-   #    try:
-   #       self.driver = webdriver.Firefox(options=firefox_options)
-   #       self.driver.set_page_load_timeout(30)
-         
-   #       # Additional JavaScript evasion
-   #       self.driver.execute_script("""
-   #             Object.defineProperty(navigator, 'webdriver', {
-   #                get: () => undefined,
-   #             });
-   #             Object.defineProperty(navigator, 'plugins', {
-   #                get: () => [1, 2, 3, 4, 5],
-   #             });
-   #             Object.defineProperty(navigator, 'languages', {
-   #                get: () => ['en-US', 'en'],
-   #             });
-   #       """)
-         
-   #    except WebDriverException as e:
-   #       print(f"Error setting up Firefox driver: {e}")
-   #       raise
-   
    def setup_driver(self):
       optimized_xpaths = self.get_optimized_xpaths()
       
-      # Check for if the xpath json file exists, only output to console if it does
       if os.path.exists("xpath_stats.json"):
          type_text("Optimized Job Scraping XPaths (JSON format)")
-         # Optional printing of the optimized paths to the console
-         # type_text(json.dumps(optimized_xpaths, indent=2))
          type_text("")
       
       firefox_options = Options()
       
-      # Use your EXACT Firefox profile with proper Selenium method
+      # Enhanced profile handling with better validation
       import glob
-      profiles = glob.glob(self.config['firefox_profiles_path'])
-      if profiles:
-         profile_path = profiles[0]
-         type_text("🕒 Opening browser...")
-         type_text("")
-         type_text(f"    Using Firefox profile: {profile_path}")
-         type_text("")
-         firefox_options.profile = profile_path  # Use proper Selenium profile assignment
-      else:
-         # TODO IMPORTANT: Default to random profile or default profile if one is not found
-         type_text("WARNING: No Firefox profile found")
+      profile_path = None
+      if 'firefox_profiles_path' in self.config:
+         profiles = glob.glob(self.config['firefox_profiles_path'])
+         if profiles:
+            profile_path = profiles[0]
+            # Verify it's actually a Firefox profile directory
+            if os.path.isdir(profile_path) and any(f.endswith('.sqlite') for f in os.listdir(profile_path)):
+               firefox_options.profile = profile_path
+               type_text("🕒 Opening browser with user profile...")
+               type_text(f"    Profile: {profile_path}")
+               type_text("")
+            else:
+               type_text("⚠️ WARNING: Profile path doesn't contain Firefox profile data")
+               profile_path = None
+      
+      if not profile_path:
+         type_text("⚠️ WARNING: Using temporary profile - may increase detection risk")
          type_text("")
       
-      # CRITICAL: Disable webdriver detection
+      # CRITICAL: Enhanced anti-detection preferences (MUST BE SET BEFORE DRIVER INIT)
       firefox_options.set_preference("dom.webdriver.enabled", False)
       firefox_options.set_preference("useAutomationExtension", False)
       firefox_options.set_preference("marionette", True)
       
+      # Disable automation indicators
+      firefox_options.set_preference("dom.disable_beforeunload", False)  # Keep this as True can be suspicious
+      firefox_options.set_preference("dom.popup_maximum", 20)  # More realistic value
+      firefox_options.set_preference("dom.disable_open_during_load", False)
+      
+      # Disable automation-related features
+      firefox_options.set_preference("media.peerconnection.enabled", False)  # WebRTC fingerprinting
+      firefox_options.set_preference("privacy.resistFingerprinting", False)  # Disable resistFingerprinting
+      firefox_options.set_preference("privacy.trackingprotection.enabled", False)
+      firefox_options.set_preference("browser.safebrowsing.malware.enabled", False)
+      firefox_options.set_preference("browser.safebrowsing.phishing.enabled", False)
+      
+      # Realistic browser behavior
+      #firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
+      #firefox_options.set_preference("browser.startup.homepage", "about:blank")
+      firefox_options.set_preference("browser.cache.disk.enable", True)
+      firefox_options.set_preference("browser.cache.memory.enable", True)
+      
+      # Disable automation logging
+      firefox_options.set_preference("remote.active-protocols", 2)
+      firefox_options.set_preference("remote.log.level", "Off")
+      
+      # Random but realistic user agent
+      user_agent = random.choice(self.user_agents)
+      firefox_options.set_preference("general.useragent.override", user_agent)
+      type_text(f"    User Agent: {user_agent}")
+      
+      # Realistic window size with slight variation
+      width = random.randint(1920, 1936)
+      height = random.randint(1080, 1096)
+      firefox_options.add_argument(f"--width={width}")
+      firefox_options.add_argument(f"--height={height}")
+      
+      # Additional arguments to reduce detection
+      firefox_options.add_argument("--disable-blink-features=AutomationControlled")
+      firefox_options.add_argument("--disable-features=VizDisplayCompositor")
+      firefox_options.add_argument("--disable-background-timer-throttling")
+      firefox_options.add_argument("--disable-backgrounding-occluded-windows")
+      firefox_options.add_argument("--disable-renderer-backgrounding")
+      
       try:
+         # Set page load timeout before creating driver
          service = Service()
-         self.driver = webdriver.Firefox(service=service, options=firefox_options)
-         self.driver.set_page_load_timeout(30)
          
-         # Comprehensive evasion script
+         # Create driver with all options set
+         self.driver = webdriver.Firefox(service=service, options=firefox_options)
+         self.driver.set_page_load_timeout(45)  # Increased timeout
+         
+         # Enhanced evasion script (executed immediately)
          self.driver.execute_script("""
-            // Remove webdriver property
-            delete Object.getPrototypeOf(navigator).webdriver;
+            // Remove automation properties
+            Object.defineProperty(navigator, 'webdriver', {
+               get: () => undefined,
+            });
             
-            // Mock permissions
+            // Override the permissions API
             const originalQuery = window.navigator.permissions.query;
             window.navigator.permissions.query = (parameters) => (
                parameters.name === 'notifications' ?
-                     Promise.resolve({ state: Notification.permission }) :
-                     originalQuery(parameters)
+                  Promise.resolve({ state: Notification.permission }) :
+                  originalQuery(parameters)
             );
             
-            // Mock plugins
+            // Spoof plugins
             Object.defineProperty(navigator, 'plugins', {
-               get: () => [1, 2, 3, 4, 5],
+               get: () => [
+                  {0: {type: "application/pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
+                  {0: {type: "application/x-google-chrome-pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
+                  {0: {type: "application/x-nacl", suffixes: "", description: "Native Client Executable"}, name: "Native Client", filename: "internal-nacl-plugin", description: "Native Client Executable", length: 1}
+               ],
             });
             
-            // Mock languages
+            // Spoof languages
             Object.defineProperty(navigator, 'languages', {
                get: () => ['en-US', 'en'],
             });
             
-            // Mock webdriver
-            Object.defineProperty(navigator, 'webdriver', {
-               get: () => false,
+            // Spoof platform
+            Object.defineProperty(navigator, 'platform', {
+               get: () => 'Win32',
             });
+            
+            // Remove evidence of automation
+            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
          """)
          
-         # Enhanced anti-detection
-         firefox_options.set_preference("dom.webdriver.enabled", False)
-         firefox_options.set_preference("useAutomationExtension", False)
-         firefox_options.set_preference("marionette", True)
+         # Additional CDP commands for Firefox (if available)
+         try:
+            # These help mask automation in newer Firefox versions
+            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+               'userAgent': user_agent,
+               'platform': 'Win32'
+            })
+         except:
+            pass  # CDP not available in all Firefox versions
          
-         # Disable automation flags
-         firefox_options.set_preference("dom.disable_beforeunload", True)
-         firefox_options.set_preference("dom.popup_maximum", 0)
-         firefox_options.set_preference("dom.disable_open_during_load", False)
-         
-         # Realistic browser characteristics
-         firefox_options.set_preference("browser.startup.page", 1)
-         firefox_options.set_preference("browser.startup.homepage", "about:blank")
-         
-         # Random user agent
-         firefox_options.set_preference("general.useragent.override", random.choice(self.user_agents))
-         
-         # Realistic window size
-         firefox_options.add_argument("--width=1920")
-         firefox_options.add_argument("--height=1080")
+         type_text("✅ Browser setup complete with enhanced anti-bot-detection")
+         type_text("")
          
       except WebDriverException as e:
          type_text(f"🚫 Error setting up Firefox driver: {e}")
@@ -308,33 +304,42 @@ class ApplyBot:
       stats = self._load_xpath_stats_from_file()
       optimized = {}
       
+      # Safety check - ensure stats is a dictionary
+      if not isinstance(stats, dict):
+         type_text(f"⚠️ WARNING | get_optimized_xpaths | stats is not a dictionary: {type(stats)}")
+         return optimized
+      
       if domain:
          # Get optimized XPaths for specific domain
          if domain in stats:
-            domain_stats = stats[domain]
-            for element_name, xpaths in domain_stats.items():
-               # Sort by hit count descending
-               sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
-               # Create optimized list - just the XPath strings in order of most successful
-               optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
+               domain_stats = stats[domain]
+               # Additional safety check for domain_stats
+               if isinstance(domain_stats, dict):
+                  for element_name, xpaths in domain_stats.items():
+                     # Sort by hit count descending
+                     sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+                     # Create optimized list - just the XPath strings in order of most successful
+                     optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
       else:
          # Get optimized XPaths across all domains (merged)
          all_domain_xpaths = {}
          
          for domain_name, domain_stats in stats.items():
-            for element_name, xpaths in domain_stats.items():
-               if element_name not in all_domain_xpaths:
-                  all_domain_xpaths[element_name] = {}
-               
-               for xpath_string, data in xpaths.items():
-                  if xpath_string not in all_domain_xpaths[element_name]:
-                        all_domain_xpaths[element_name][xpath_string] = 0
-                  all_domain_xpaths[element_name][xpath_string] += data['count']
+               if isinstance(domain_stats, dict):
+                  for element_name, xpaths in domain_stats.items():
+                     if element_name not in all_domain_xpaths:
+                           all_domain_xpaths[element_name] = {}
+                     
+                     if isinstance(xpaths, dict):
+                           for xpath_string, data in xpaths.items():
+                              if xpath_string not in all_domain_xpaths[element_name]:
+                                 all_domain_xpaths[element_name][xpath_string] = 0
+                              all_domain_xpaths[element_name][xpath_string] += data['count']
          
          # Sort and create optimized list
          for element_name, xpaths in all_domain_xpaths.items():
-            sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1], reverse=True)
-            optimized[element_name] = [xpath_string for xpath_string, count in sorted_xpaths]
+               sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1], reverse=True)
+               optimized[element_name] = [xpath_string for xpath_string, count in sorted_xpaths]
       
       return optimized
    
@@ -385,10 +390,23 @@ class ApplyBot:
    def _load_xpath_stats_from_file(self, filename="xpath_stats.json"):
       """Internal method to load statistics from file"""
       try:
+         # Check if file exists and has content
+         if not os.path.exists(filename) or os.path.getsize(filename) == 0:
+               return {}
+         
          with open(filename, 'r') as f:
-            return json.load(f)
-      except FileNotFoundError:
-         return {}  # Return empty dict if file doesn't exist
+               data = json.load(f)
+               
+         # Ensure it's a dictionary
+         if isinstance(data, dict):
+               return data
+         else:
+               type_text(f"⚠️ WARNING | XPath stats file contains invalid data type: {type(data)}")
+               return {}
+               
+      except json.JSONDecodeError:
+         type_text(f"⚠️ WARNING | XPath stats file contains invalid JSON, resetting to empty")
+         return {}
       except Exception as e:
          type_text(f"🚫 ERROR | _load_xpath_stats_from_file | Error loading XPath statistics from file: {e}")
          return {}
@@ -584,6 +602,8 @@ class ApplyBot:
                type_text("")
                type_text("Press Enter AFTER you have successfully bypassed the captcha...")
                input("") # Waits for user input
+            if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
+               return "closed"
             # Arrays of XPaths for each field
             job_title_xpaths = [
                # Direct XPaths using class attributes
@@ -1732,6 +1752,8 @@ class ApplyBot:
    def linkedin_login(self):
       type_text(f"\n{'='*50}")
       type_text("") # Divider
+      type_text(" \ LinkedIn Login /")
+      type_text("") # Divider
       type_text("🕒 Navigating to 'https://www.linkedin.com/")
       type_text("")
       
@@ -2463,6 +2485,7 @@ def main():
          writer.writeheader()
          
          successful_scrapes = 0
+         closed_listings = 0
          failed_links = []
          incompatible_links = [] # Job links whose requirements are incompatible with the user
          
@@ -2478,6 +2501,9 @@ def main():
                csvfile.flush()  # Ensure data is written immediately
                successful_scrapes += 1
                type_text(f"✅ Successfully scraped and saved")
+            elif job_info and job_info != "closed": # ← HANDLE CLOSED CASE
+               closed_listings += 1
+               type_text(f"🚫 Job closed - skipping to next job listing")
             elif job_info == "incompatible":  # ← HANDLE INCOMPATIBLE CASE
                incompatible_links.append(link) # Adds the link to the list of incompatible job listing links
                type_text(f"🚫 Job incompatible - skipped due to clearance requirements")
