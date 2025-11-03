@@ -7,6 +7,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from typing import Dict, List
+import re
 
 
 class ResumeTailor:
@@ -80,6 +82,61 @@ class ResumeTailor:
             text += page_text + "\n\n"
          return text.strip()
    
+   def parse_resume_into_sections(self, resume_text: str) -> Dict[str, str]:
+      """Parse resume into structured sections for targeted processing"""
+      sections = {
+         'contact': '',
+         'summary': '', 
+         'experience': '',
+         'skills': '',
+         'education': '',
+         'projects': '',
+         'certifications': ''
+      }
+      
+      # Common section headers (case insensitive)
+      section_headers = {
+         'experience': ['experience', 'work experience', 'employment'],
+         'skills': ['skills', 'technical skills', 'competencies'],
+         'education': ['education', 'academic'],
+         'projects': ['projects', 'personal projects'],
+         'certifications': ['certifications', 'licenses'],
+         'summary': ['summary', 'professional summary']
+      }
+      
+      lines = resume_text.split('\n')
+      current_section = 'contact'  # Everything before first header is contact/summary
+      section_content = []
+      
+      for line in lines:
+         line_stripped = line.strip()
+         if not line_stripped:
+               continue
+               
+         # Check if this line is a section header
+         is_header = False
+         for section, headers in section_headers.items():
+               if any(header in line_stripped.lower() for header in headers):
+                  # Save previous section
+                  if section_content and current_section:
+                     sections[current_section] = '\n'.join(section_content)
+                  
+                  # Start new section
+                  current_section = section
+                  section_content = [line_stripped]  # Include the header
+                  is_header = True
+                  break
+         
+         if not is_header:
+               section_content.append(line_stripped)
+      
+      # Save the final section
+      if section_content and current_section:
+         sections[current_section] = '\n'.join(section_content)
+      
+      self.parsed_resume = sections
+      return sections
+   
    def clean_resume_text(self, text):
       """Clean and format resume text for better readability WITHOUT breaking dates"""
       # Replace multiple spaces with single spaces
@@ -118,110 +175,60 @@ class ResumeTailor:
       
       return '\n'.join(formatted_lines)
    
-   def iterative_tailor_resume(self, job_description, instructions, successful_iterations=1, max_iterations=6):
-      """Tailor resume with optional iterative refinement"""
-      if successful_iterations > 2:
-         print(f"⚠️ WARNING | More than 2 successful iterations may cause quality degradation. It will proceed with {successful_iterations} iterations.")
-      if max_iterations > 10:
-         print(f"⚠️ WARNING | More than 10 max iterations may take a long time to process. Each tailor pass takes between 10-20 seconds.")
-      
-      # Get the user's current resume in textual form
-      current_resume = self.clean_resume_text(
-         self.extract_text_from_pdf(self.config["resume_path"])
-      )
-      
-      extra_instructions = ""
-      successful_loops = 0
-      loops = 0
-      while (successful_loops < successful_iterations) and (loops < max_iterations): # Iterate until you get enough successful loops
-         print("🔄 Starting AI processing...")
-         print("")
-         print(f"Refinement iteration {loops+1}...")
-         
-         tailored = self.single_tailor_pass(current_resume, job_description + extra_instructions, instructions)
-         if not tailored: # If tailoring fails
-            print("⚠️ WARNING | iterative_tailor_resume | Quality check failed, keeping previous version")
-            loops += 1
-            continue
-         
-         if 'Here is the tailored resume' in tailored or 'tailored resume' in tailored: # Check that the AI didn't ignore rules like an idiot
-            print("⚠️ WARNING | iterative_tailor_resume | 'Here is the tailored resume' | Quality check failed, keeping previous version and adding extra instructions")
-            extra_instructions = "DO NOT PUT 'HERE IS THE TAILORED RESUME' IN YOUR OUTPUT!!!"
-            loops += 1
-            continue
-         
-         if (self.config['first_name'] not in tailored) or (self.config['last_name'] not in tailored): # Check that the AI didn't remove the name from the resume like an idiot
-            print("⚠️ WARNING | iterative_tailor_resume | 'Here is the tailored resume' | Quality check failed, keeping previous version and adding extra instructions")
-            extra_instructions = "DO NOT REMOVE THE PERSON'S NAME FROM THE RESUME!"
-            loops += 1
-            continue
-         
-         # Create temporary PDFs for validation
-         temp_tailored_path = f"temp_tailored_{loops}.pdf"
-         
-         # Save current and tailored versions as temporary PDFs
-         self.save_tailored_resume_pdf(tailored, temp_tailored_path)
-         
-         # Validation with PDF paths
-         if self.validate_improvement(temp_tailored_path):
-            print("TEST")
-            current_resume = tailored
-            successful_loops += 1
-            print(f"🎯 Successful iterations: {successful_loops}/{successful_iterations}")
-         else:
-            print("⚠️ WARNING | iterative_tailor_resume | Quality check failed, keeping previous version")
-            continue
-         
-         loops += 1
-         print(f"🔁 Total iterations completed: {loops}/{max_iterations}")
-         print("")
-      
-      print(f"✅ Completed {successful_loops} successful iterations out of {loops} total attempts")
-      return current_resume
-   
-   def single_tailor_pass(self, current_resume, job_description, instructions):
-      """Use Ollama to tailor resume for specific job"""
-      
-      # Prepare skills list
-      skills = ", ".join(self.config["skill_keywords"])
-      
+
+   def tailor_experience_section(self, experience_text: str, job_description: str, skills: str) -> str:
+      """Tailor ONLY the experience section - most important part"""
       prompt = f"""
-      Please tailor this resume for the following job description. 
-      
+      TAILOR ONLY THE EXPERIENCE BULLET POINTS. DO NOT MODIFY ANYTHING ELSE.
+
       JOB DESCRIPTION:
-      {job_description}
-      
-      USER'S SKILLS:
-      {skills}
-      
-      ORIGINAL RESUME:
-      {current_resume}
-      
-      INSTRUCTIONS:
-      {instructions}
-      
-      CRITICAL FORMATTING RULES:
-         - PRESERVE EXACT LINE BREAKS: Keep ALL text on the same lines as they appear in the original
-         - DO NOT modify date formatting or move dates to different lines
-         - DO NOT split date ranges across multiple lines - keep "Month Year - Month Year" on one line
-         - ONLY change bullet point content and skills section content
-         - EVERYTHING ELSE stays exactly the same, including spacing and line breaks, AND Job Titles, etc.
-         - When generating content, DO NOT put bullet points before job titles, this will completely break the formatting!!!
-         
-         EXAMPLE OF CORRECT FORMATTING (must match original layout exactly):
-         Software Engineer June 2025 - Present Telepathy Networks | Frederica, DE
-         • Original bullet point tailored for job...
-         
-         EXAMPLE OF INCORRECT FORMATTING (DO NOT DO THIS):
-         Software Engineer June
-         2025 - Present Telepathy Networks |Frederica, DE
-         • Modified content...
-         
-         Focus only on improving the bullet point and skills section content while keeping everything else identical. You got this!
-         
-         DO NOT PUT 'Here is the tailored resume:' AT THE TOP OF THE OUTPUT!!!!!!!!!
+      {job_description[:1500]}  # Truncated to save tokens
+
+      RELEVANT SKILLS: {skills}
+
+      ORIGINAL EXPERIENCE SECTION:
+      {experience_text}
+
+      CRITICAL RULES:
+      1. ONLY modify the bullet points (lines starting with •, ●, or -)
+      2. PRESERVE ALL job titles, company names, and date lines EXACTLY as written
+      3. Keep the exact same line breaks and spacing
+      4. Emphasize skills from the job description naturally
+      5. Do not invent experiences or qualifications
+      6. Keep approximately the same number of bullet points per position
+      7. Return ONLY the modified experience section text
+
+      Focus on making bullet points more achievement-oriented and relevant to the job.
       """
       
+      return self._call_llm_safely(prompt, "experience")
+   
+   def tailor_skills_section(self, skills_text: str, job_description: str, user_skills: List[str]) -> str:
+      """Tailor ONLY the skills section"""
+      prompt = f"""
+      TAILOR ONLY THE SKILLS SECTION. Reorder and emphasize relevant skills.
+
+      JOB DESCRIPTION:
+      {job_description[:1000]}  # Even shorter for skills
+
+      USER'S SKILLS: {', '.join(user_skills)}
+
+      ORIGINAL SKILLS SECTION:
+      {skills_text}
+
+      RULES:
+      1. Reorder skills to put most relevant ones first
+      2. You may group related skills together
+      3. Keep the same general format (bullets, categories, etc.)
+      4. Add any missing skills from USER'S SKILLS that are relevant to the job
+      5. Remove obviously irrelevant skills if space is tight
+      6. Return ONLY the modified skills section
+      """
+      
+      return self._call_llm_safely(prompt, "skills")
+
+   def _call_llm_safely(self, prompt: str, section_name: str) -> str:
+      """Safe wrapper for LLM calls with error handling"""
       payload = {
          "model": "llama3.1:8b",
          "prompt": prompt,
@@ -229,32 +236,114 @@ class ResumeTailor:
       }
       
       try:
-         # Time the API call
-         total_start = time.time()
-         api_start = time.time()
+         print(f"🔄 Tailoring {section_name} section...")
          response = requests.post(self.ollama_url, json=payload)
          response.raise_for_status()
-         api_end = time.time()
-         # Time the JSON parsing
-         parse_start = time.time()
          result = response.json()["response"]
-         parse_end = time.time()
-         total_end = time.time()
-         # Calculate times
-         api_time = api_end - api_start
-         parse_time = parse_end - parse_start
-         total_time = total_end - total_start
          
-         # Print detailed timing
-         print(f"⏱️  Timing Results:")
-         print(f"   API Call: {api_time:.2f}s")
-         print(f"   JSON Parse: {parse_time:.3f}s")
-         print(f"   Total: {total_time:.2f}s")
-         print(f"   Response length: {len(result)} characters")
+         # Basic quality check
+         if len(result.strip()) < 10:
+               print(f"⚠️  LLM returned empty response for {section_name}, using original")
+               return None
+               
          return result
       except Exception as e:
-         print(f"🚫 ERROR | single_tailor_pass | Error calling Ollama: {e}")
+         print(f"🚫 Error tailoring {section_name}: {e}")
          return None
+
+
+   def iterative_tailor_resume(self, job_description: str, instructions: str, 
+                              successful_iterations: int = 1, max_iterations: int = 6) -> str:
+      """NEW: Targeted iterative tailoring with section-by-section processing"""
+      
+      # Extract and parse resume once
+      current_resume = self.clean_resume_text(
+         self.extract_text_from_pdf(self.config["resume_path"])
+      )
+      
+      sections = self.parse_resume_into_sections(current_resume)
+      skills_list = self.config["skill_keywords"]
+      
+      best_resume = current_resume
+      best_score = 0
+      
+      for iteration in range(max_iterations):
+         print(f"🔄 Iteration {iteration + 1}/{max_iterations}")
+         
+         # Tailor key sections sequentially
+         tailored_sections = sections.copy()
+         
+         # 1. Tailor Experience (most important)
+         if sections.get('experience'):
+               new_experience = self.tailor_experience_section(
+                  sections['experience'], job_description, ', '.join(skills_list)
+               )
+               if new_experience and self._validate_section(sections['experience'], new_experience):
+                  tailored_sections['experience'] = new_experience
+         
+         # 2. Tailor Skills
+         if sections.get('skills'):
+               new_skills = self.tailor_skills_section(
+                  sections['skills'], job_description, skills_list
+               )
+               if new_skills and self._validate_section(sections['skills'], new_skills):
+                  tailored_sections['skills'] = new_skills
+         
+         # Reassemble resume
+         tailored_resume = self._reassemble_resume(tailored_sections)
+         
+         # Validate improvement
+         temp_path = f"temp_iteration_{iteration}.pdf"
+         self.save_tailored_resume_pdf(tailored_resume, temp_path)
+         
+         if self.validate_improvement(temp_path):
+               current_score = self._calculate_relevance_score(tailored_resume, job_description)
+               if current_score > best_score:
+                  best_resume = tailored_resume
+                  best_score = current_score
+                  print(f"🎯 New best score: {best_score:.2f}")
+         
+         # Early exit if we have enough good iterations
+         if iteration + 1 >= successful_iterations and best_score > 0:
+               break
+      
+      print(f"✅ Best relevance score achieved: {best_score:.2f}")
+      return best_resume
+   
+   def _validate_section(self, original: str, new: str) -> bool:
+      """Validate that a tailored section maintains quality"""
+      if not new or len(new) < len(original) * 0.3:
+         return False
+      
+      # Check for forbidden phrases
+      forbidden_phrases = [
+         "here is the tailored", "tailored resume", "i have tailored", 
+         "modified version", "based on your job description"
+      ]
+      if any(phrase in new.lower() for phrase in forbidden_phrases):
+         return False
+         
+      return True
+
+   def _reassemble_resume(self, sections: Dict[str, str]) -> str:
+      """Reassemble sections into a complete resume"""
+      # Define assembly order
+      order = ['contact', 'summary', 'experience', 'skills', 'education', 'projects', 'certifications']
+      
+      resume_parts = []
+      for section in order:
+         if sections.get(section):
+               resume_parts.append(sections[section])
+      
+      return '\n\n'.join(resume_parts)
+
+   def _calculate_relevance_score(self, resume_text: str, job_description: str) -> float:
+      """Calculate a simple relevance score between resume and job description"""
+      job_keywords = set(re.findall(r'\b\w+\b', job_description.lower()))
+      resume_keywords = set(re.findall(r'\b\w+\b', resume_text.lower()))
+      
+      common_keywords = job_keywords.intersection(resume_keywords)
+      return len(common_keywords) / len(job_keywords) if job_keywords else 0
    
    def validate_improvement(self, new_resume_pdf):
       """Enhanced quality checks including page count validation"""
@@ -421,6 +510,8 @@ class ResumeTailor:
       except Exception as e:
          print(f"🚫 ERROR | save_tailored_resume_pdf | Error creating PDF: {e}")
          return False
+
+
 
 
 # Usage example
