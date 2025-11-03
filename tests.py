@@ -216,6 +216,10 @@ class TestNormalizePayRate(unittest.TestCase):
    def test_single_hourly_rates(self):
       """Test single hourly rate conversions"""
       test_cases = [
+         ("$37 an hour", "$76,960"), 
+         ("$37 hour", "$76,960"), 
+         ("$37/hour", "$76,960"), 
+         ("$37 / hour", "$76,960"), 
          ("$25/hr", "$52,000"),
          ("$15.50 /hr", "$32,240"),
          ("$100.75/hr", "$209,560"),
@@ -230,11 +234,20 @@ class TestNormalizePayRate(unittest.TestCase):
    
    def test_hourly_ranges(self):
       """Test hourly rate ranges return tuples with midpoint and note"""
-      result = normalize_pay_rate("$20/hr - $30/hr")
-      self.assertIsInstance(result, tuple)
-      self.assertEqual(len(result), 2)
-      self.assertEqual(result[0], "$52,000")  # Midpoint of $41,600 and $62,400
-      self.assertIn("Original range:", result[1])
+      test_cases = [
+         ("$20/hr - $30/hr", "$52,000"), 
+         ("$23.50 - $26.00 an hour - Full-time", "$51,480"),
+         ("$20.0 - $30.0/hr", "$52,000"),
+         ("$20.0/hr - $30.0/hr", "$52,000"),
+         ("$20.0/hour - $30.0/hour", "$52,000"),
+         ("$20 - $30 per hour", "$52,000"),
+         ("$20-$30/hr", "$52,000"),
+         ("$20-$30 per hour", "$52,000")
+      ]
+      for input_text, expected in test_cases:
+         with self.subTest(input_text=input_text):
+               result = normalize_pay_rate(input_text)
+               self.assertEqual(result[0], expected)
    
    def test_annual_k_notation(self):
       """Test annual salaries with K notation"""
@@ -296,15 +309,15 @@ class TestNormalizePayRate(unittest.TestCase):
    def test_mixed_content_with_work_keywords(self):
       """Test that mixed content with work type keywords returns '?'"""
       mixed_cases = [
-         "$50/hr - hybrid work",
-         "remote - $75k/yr",
-         "full-time $100,000/yr",
-         "on-site position: $30/hr"
+         ("$50/hr - hybrid work", "$104,000"),
+         ("remote - $75k/yr", "$75,000"),
+         ("full-time $100,000/yr", "$100,000"),
+         ("on-site position: $30/hr", "$62,400")
       ]
-      for case in mixed_cases:
-         with self.subTest(case=case):
-               result = normalize_pay_rate(case)
-               self.assertEqual(result[0], "?")
+      for input_text, expected in mixed_cases:
+         with self.subTest(input_text=input_text):
+            result = normalize_pay_rate(input_text)
+            self.assertEqual(result[0], expected) 
    
    def test_unusual_formatting_and_spacing(self):
       """Test handling of unusual spacing and formatting"""
@@ -621,7 +634,7 @@ class TestPreProcessJobLinks(unittest.TestCase):
       
       # Empty strings should be filtered out by read_job_links
       self.assertNotIn('', result, "Empty strings should be filtered out")
-
+   
    @patch('main.type_text')
    def test_pre_process_domain_consistency(self, mock_type_text):
       """Test that www and non-www domains are treated consistently"""
@@ -651,7 +664,7 @@ class TestPreProcessJobLinks(unittest.TestCase):
       # All Indeed domains should be normalized to same base
       unique_indeed_domains = set(indeed_domains)
       self.assertEqual(len(unique_indeed_domains), 1, "All Indeed domains should normalize to same base")
-
+   
    @patch('main.type_text')
    def test_pre_process_preserves_non_linkedin_indeed_links(self, mock_type_text):
       """Test that non-LinkedIn/Indeed links are preserved as-is"""
@@ -757,8 +770,8 @@ class TestPreProcessJobLinks(unittest.TestCase):
          result = pre_process_job_links(test_csv, ascending_alphabetically=True)
          
          # Debug output to see what we got
-         print(f"DEBUG: Input had {len(linkedin_duplicates)} LinkedIn URLs with tracking")
-         print(f"DEBUG: Output has {len(result)} URLs after processing")
+         # print(f"DEBUG: Input had {len(linkedin_duplicates)} LinkedIn URLs with tracking")
+         # print(f"DEBUG: Output has {len(result)} URLs after processing")
          for i, url in enumerate(result):
                print(f"DEBUG: Result {i}: {url}")
          

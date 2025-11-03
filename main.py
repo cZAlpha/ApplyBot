@@ -111,7 +111,7 @@ class ApplyBot:
       
       # Use your EXACT Firefox profile with proper Selenium method
       import glob
-      profiles = glob.glob("/Users/klaus/Library/Application Support/Firefox/Profiles/*.default-release")
+      profiles = glob.glob(self.config['firefox_profiles_path'])
       if profiles:
          profile_path = profiles[0]
          type_text("🕒 Opening browser...")
@@ -134,10 +134,55 @@ class ApplyBot:
          self.driver = webdriver.Firefox(service=service, options=firefox_options)
          self.driver.set_page_load_timeout(30)
          
-         # Nuclear option for evasion
+         # Comprehensive evasion script
          self.driver.execute_script("""
-               Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-               delete navigator.__proto__.webdriver;""")
+            // Remove webdriver property
+            delete Object.getPrototypeOf(navigator).webdriver;
+            
+            // Mock permissions
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+               parameters.name === 'notifications' ?
+                     Promise.resolve({ state: Notification.permission }) :
+                     originalQuery(parameters)
+            );
+            
+            // Mock plugins
+            Object.defineProperty(navigator, 'plugins', {
+               get: () => [1, 2, 3, 4, 5],
+            });
+            
+            // Mock languages
+            Object.defineProperty(navigator, 'languages', {
+               get: () => ['en-US', 'en'],
+            });
+            
+            // Mock webdriver
+            Object.defineProperty(navigator, 'webdriver', {
+               get: () => false,
+            });
+         """)
+         
+         # Enhanced anti-detection
+         firefox_options.set_preference("dom.webdriver.enabled", False)
+         firefox_options.set_preference("useAutomationExtension", False)
+         firefox_options.set_preference("marionette", True)
+         
+         # Disable automation flags
+         firefox_options.set_preference("dom.disable_beforeunload", True)
+         firefox_options.set_preference("dom.popup_maximum", 0)
+         firefox_options.set_preference("dom.disable_open_during_load", False)
+         
+         # Realistic browser characteristics
+         firefox_options.set_preference("browser.startup.page", 1)
+         firefox_options.set_preference("browser.startup.homepage", "about:blank")
+         
+         # Random user agent
+         firefox_options.set_preference("general.useragent.override", random.choice(self.user_agents))
+         
+         # Realistic window size
+         firefox_options.add_argument("--width=1920")
+         firefox_options.add_argument("--height=1080")
          
       except WebDriverException as e:
          type_text(f"🚫 Error setting up Firefox driver: {e}")
@@ -223,53 +268,99 @@ class ApplyBot:
    # STOP - Stealth
    
    # START - Statistics
-   def _track_xpath_hit(self, element_name, xpath_string):
+   def _track_xpath_hit(self, element_name, xpath_string, domain=None):
       """Track which XPaths are successful for which elements | Statistical tracking function"""
+      # Extract domain from current URL if not provided
+      if domain is None and hasattr(self, 'driver') and self.driver.current_url:
+         try:
+            from urllib.parse import urlparse
+            parsed_url = urlparse(self.driver.current_url)
+            domain = parsed_url.netloc
+         except:
+            domain = "unknown"
+      elif domain is None:
+         domain = "unknown"
+      
       # Load current statistics from file
       stats = self._load_xpath_stats_from_file()
       
-      if element_name not in stats:
-         stats[element_name] = {}
+      # Initialize domain structure if it doesn't exist
+      if domain not in stats:
+         stats[domain] = {}
       
-      # Use the actual XPath string as the key (GOOD FORMAT)
-      if xpath_string not in stats[element_name]:
-         stats[element_name][xpath_string] = {
+      # Initialize element structure if it doesn't exist
+      if element_name not in stats[domain]:
+         stats[domain][element_name] = {}
+      
+      # Use the actual XPath string as the key
+      if xpath_string not in stats[domain][element_name]:
+         stats[domain][element_name][xpath_string] = {
                'count': 0
          }
       
-      stats[element_name][xpath_string]['count'] += 1
+      stats[domain][element_name][xpath_string]['count'] += 1
       
       # Save updated statistics back to file
       self._save_xpath_stats_to_file(stats)
    
-   def get_optimized_xpaths(self):
-      """Get optimized XPath lists based on hit statistics"""
+   def get_optimized_xpaths(self, domain=None):
+      """Get optimized XPath lists based on hit statistics for a specific domain or all domains"""
       stats = self._load_xpath_stats_from_file()
       optimized = {}
       
-      for element_name, xpaths in stats.items():
-         # Sort by hit count descending
-         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+      if domain:
+         # Get optimized XPaths for specific domain
+         if domain in stats:
+            domain_stats = stats[domain]
+            for element_name, xpaths in domain_stats.items():
+               # Sort by hit count descending
+               sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+               # Create optimized list - just the XPath strings in order of most successful
+               optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
+      else:
+         # Get optimized XPaths across all domains (merged)
+         all_domain_xpaths = {}
          
-         # Create optimized list - just the XPath strings in order of most successful
-         optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
+         for domain_name, domain_stats in stats.items():
+            for element_name, xpaths in domain_stats.items():
+               if element_name not in all_domain_xpaths:
+                  all_domain_xpaths[element_name] = {}
+               
+               for xpath_string, data in xpaths.items():
+                  if xpath_string not in all_domain_xpaths[element_name]:
+                        all_domain_xpaths[element_name][xpath_string] = 0
+                  all_domain_xpaths[element_name][xpath_string] += data['count']
+         
+         # Sort and create optimized list
+         for element_name, xpaths in all_domain_xpaths.items():
+            sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1], reverse=True)
+            optimized[element_name] = [xpath_string for xpath_string, count in sorted_xpaths]
       
       return optimized
    
-   def get_xpath_statistics(self):
-      """Print out XPath hit statistics"""
+   def get_xpath_statistics(self, domain=None):
+      """Print out XPath hit statistics for a specific domain or all domains"""
       stats = self._load_xpath_stats_from_file()
       
       type_text("XPATH HIT STATISTICS")
       
-      for element_name, xpaths in stats.items():
-         type_text(f"\n{element_name}:")
-         
-         # Sort by count descending
-         sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
-         
-         for xpath_string, data in sorted_xpaths:
-               type_text(f"  {data['count']} hits: {xpath_string}")
+      domains_to_show = [domain] if domain else stats.keys()
+      
+      for domain_name in domains_to_show:
+         if domain_name in stats:
+            type_text(f"\n--- {domain_name} ---")
+            domain_stats = stats[domain_name]
+            
+            for element_name, xpaths in domain_stats.items():
+               type_text(f"\n{element_name}:")
+               
+               # Sort by count descending
+               sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+               
+               for xpath_string, data in sorted_xpaths:
+                  type_text(f"  {data['count']} hits: {xpath_string}")
+         else:
+               type_text(f"\nNo statistics found for domain: {domain_name}")
    
    def save_xpath_statistics(self, filename="xpath_stats.json"):
       """Save XPath statistics to a file - kept for backward compatibility"""
@@ -295,11 +386,11 @@ class ApplyBot:
       """Internal method to load statistics from file"""
       try:
          with open(filename, 'r') as f:
-               return json.load(f)
+            return json.load(f)
       except FileNotFoundError:
          return {}  # Return empty dict if file doesn't exist
       except Exception as e:
-         type_text(f"Error loading XPath statistics from file: {e}")
+         type_text(f"🚫 ERROR | _load_xpath_stats_from_file | Error loading XPath statistics from file: {e}")
          return {}
    
    def _save_xpath_stats_to_file(self, stats, filename="xpath_stats.json"):
@@ -319,6 +410,34 @@ class ApplyBot:
          type_text("Critical Element Scraping Failures: " + str(self.critical_element_scrape_fails)) # Number of times where a critical scraping element failed to be scraped
          type_text("Non-Critical Element Scraping Failures: " + str(self.non_critical_element_scrape_fails)) # Number of times where a non-critical scraping element failed to be scraped
    
+   def get_domain_statistics_summary(self):
+      """Print a summary of statistics by domain"""
+      stats = self._load_xpath_stats_from_file()
+      
+      type_text("DOMAIN STATISTICS SUMMARY")
+      
+      for domain_name, domain_stats in stats.items():
+         total_hits = 0
+         element_count = len(domain_stats)
+         
+         for element_name, xpaths in domain_stats.items():
+               for xpath_data in xpaths.values():
+                  total_hits += xpath_data['count']
+         
+         type_text(f"\n{domain_name}:")
+         type_text(f"  Elements tracked: {element_count}")
+         type_text(f"  Total hits: {total_hits}")
+         
+         # Show top 3 elements by hit count
+         element_totals = []
+         for element_name, xpaths in domain_stats.items():
+               element_hits = sum(data['count'] for data in xpaths.values())
+               element_totals.append((element_name, element_hits))
+         
+         element_totals.sort(key=lambda x: x[1], reverse=True)
+         for element_name, hits in element_totals[:3]:
+               type_text(f"  {element_name}: {hits} hits")
+   
    def get_security_clearance_statistics(self):
       type_text("SECURITY CLEARANCE STATISTICS")
       type_text("")
@@ -328,20 +447,36 @@ class ApplyBot:
          type_text("Number of jobs thrown out due to lack of clearance: " + str(self.jobs_thrown_out_for_lack_of_security_clearance))
    # STOP - Statistics
    
+   def search_terms_in_page(self, terms):
+      """Search for multiple terms in page, return found ones"""
+      if self.driver:
+         page_text = self.driver.page_source.lower()
+         found = []
+         
+         for term in terms:
+            if term.lower() in page_text:
+               found.append(term)
+         
+         return found
+      
+      else:
+         type_text("🚫 ERROR | search_terms_in_page | Driver not found!")
+         return False
+   
    def get_element_text_from_xpaths(self, element_name, xpaths, default="?", critical=False):
       """Try multiple XPaths until one works"""
       for i, xpath in enumerate(xpaths):
          try:
-               time.sleep(0.1)  # Short delay between attempts
-               element = self.driver.find_element(By.XPATH, xpath)
-               text = element.text.strip()
-               if text:  # Only return if we actually got text
-                  type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}") # Output successful hit to the console                
-                  self._track_xpath_hit(element_name, xpath) # Track the successful XPath hit
-                  self.save_xpath_statistics() # Update statistics as it goes
-                  return text
+            time.sleep(0.1)  # Short delay between attempts
+            element = self.driver.find_element(By.XPATH, xpath)
+            text = element.text.strip()
+            if text:  # Only return if we actually got text
+               type_text(f"  {element_name} was found with XPath #{i+1}: {xpath}") # Output successful hit to the console                
+               self._track_xpath_hit(element_name, xpath) # Track the successful XPath hit
+               self.save_xpath_statistics() # Update statistics as it goes
+               return text
          except NoSuchElementException:
-               continue  # Try next XPath
+            continue  # Try next XPath
       
       # If we get here, none of the XPaths worked
       if critical:
@@ -374,63 +509,63 @@ class ApplyBot:
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
             # Arrays of XPaths for each field
-               job_title_xpaths = [
-                  # Absolute XPaths
-                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
-                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
-                  # More flexible XPaths based on the HTML structure
-                  "//h1[contains(@class, 'job-details-jobs-unified-top-card__job-title')]",
-                  "//h1[contains(@class, 't-24') and contains(@class, 't-bold')]",
-                  "//h1[@class='t-24 t-bold inline']",
-                  "//div[contains(@class, 'job-details-jobs-unified-top-card__job-title')]//h1",
-                  "//h1[contains(text(), 'Engineer') or contains(text(), 'Developer') or contains(text(), 'Manager') or contains(text(), 'Tech') or contains(text(), 'Analyst') or contains(text(), 'Help') or contains(text(), 'Desk') or contains(text(), 'Admin') or contains(text(), 'Network') or contains(text(), 'Desk') or contains(text(), 'Support')]",
-                  # Generic h1 elements that are likely to be job titles
-                  "//main//h1",
-                  "//div[contains(@class, 'main')]//h1",
-                  "//h1[not(contains(@class, 'hidden')) and string-length(text()) > 10]",
-                  # Fallback to any h1 that's not empty
-                  "//h1[normalize-space(text()) != '']"
-               ]
-               employer_xpaths = [
-                  # Absolute XPaths
-                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
-                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
-                  # Company name in specific container
-                  "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a",
-                  "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]",
-                  # Links with company class patterns
-                  "//a[contains(@class, 'DJZxjMmjvRjrlgkfexJvTUxNqCHEnFKxUSdJm')]",
-                  
-                  # Company links near logos
-                  "//div[contains(@class, 'display-flex align-items-center')]//a[contains(@href, '/company/')]",
-                  "//a[.//div[contains(@class, 'ivm-image-view-model')]]/following-sibling::div//a",
-                  # Text content near company logos
-                  "//img[contains(@alt, 'logo')]/ancestor::a/following-sibling::div//a",
-                  # Generic company name patterns
-                  "//a[not(contains(text(), 'Apply')) and not(contains(text(), 'Save')) and string-length(text()) > 2 and string-length(text()) < 50]"
-               ]
-               location_xpaths = [
-                  # Original absolute XPaths (keep as fallbacks)
-                  "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
-                  "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
-                  "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
-                  # Location in the tertiary description container
-                  "//div[contains(@class, 'job-details-jobs-unified-top-card__tertiary-description-container')]//span[contains(@class, 'tvm__text')][1]",
-                  "//div[contains(@class, 'job-details-jobs-unified-top-card__primary-description-container')]//span[contains(@class, 'tvm__text')][1]",
-                  # First tvm__text element (usually location)
-                  "//span[contains(@class, 'tvm__text') and contains(@class, 'tvm__text--low-emphasis')][1]",
-                  # Location patterns in text
-                  "//span[contains(@class, 'tvm__text') and (contains(text(), 'United States') or contains(text(), 'FL') or contains(text(), 'MD') or contains(text(), 'PA') or contains(text(), 'VA') or contains(text(), 'DE') or contains(text(), 'CA') or contains(text(), 'NY') or contains(text(), 'TX') or contains(text(), 'Remote') or contains(text(), 'Hybrid'))]",
-                  # Before the first separator (·)
-                  "//span[contains(@class, 'tvm__text')][preceding-sibling::span[contains(@class, 'white-space-pre')][1]]",
-                  # In the location-specific containers
-                  "//span[contains(@class, 'tvm__text') and not(contains(text(), 'ago')) and not(contains(text(), 'people')) and not(contains(text(), 'Promoted')) and not(contains(text(), 'Responses'))]",
-                  # Generic location fallback
-                  "//span[contains(@class, 't-black--light')]//span[1]"
-               ]
-               pay_rate_xpaths = [
+            job_title_xpaths = [
+               # Absolute XPaths
+               "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1",
+               "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+               "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1",
+               # More flexible XPaths based on the HTML structure
+               "//h1[contains(@class, 'job-details-jobs-unified-top-card__job-title')]",
+               "//h1[contains(@class, 't-24') and contains(@class, 't-bold')]",
+               "//h1[@class='t-24 t-bold inline']",
+               "//div[contains(@class, 'job-details-jobs-unified-top-card__job-title')]//h1",
+               "//h1[contains(text(), 'Engineer') or contains(text(), 'Developer') or contains(text(), 'Manager') or contains(text(), 'Tech') or contains(text(), 'Analyst') or contains(text(), 'Help') or contains(text(), 'Desk') or contains(text(), 'Admin') or contains(text(), 'Network') or contains(text(), 'Desk') or contains(text(), 'Support')]",
+               # Generic h1 elements that are likely to be job titles
+               "//main//h1",
+               "//div[contains(@class, 'main')]//h1",
+               "//h1[not(contains(@class, 'hidden')) and string-length(text()) > 10]",
+               # Fallback to any h1 that's not empty
+               "//h1[normalize-space(text()) != '']"
+            ]
+            employer_xpaths = [
+               # Absolute XPaths
+               "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a",
+               "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
+               "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a",
+               # Company name in specific container
+               "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a",
+               "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]",
+               # Links with company class patterns
+               "//a[contains(@class, 'DJZxjMmjvRjrlgkfexJvTUxNqCHEnFKxUSdJm')]",
+               
+               # Company links near logos
+               "//div[contains(@class, 'display-flex align-items-center')]//a[contains(@href, '/company/')]",
+               "//a[.//div[contains(@class, 'ivm-image-view-model')]]/following-sibling::div//a",
+               # Text content near company logos
+               "//img[contains(@alt, 'logo')]/ancestor::a/following-sibling::div//a",
+               # Generic company name patterns
+               "//a[not(contains(text(), 'Apply')) and not(contains(text(), 'Save')) and string-length(text()) > 2 and string-length(text()) < 50]"
+            ]
+            location_xpaths = [
+               # Original absolute XPaths (keep as fallbacks)
+               "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[2]",
+               "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
+               "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]",
+               # Location in the tertiary description container
+               "//div[contains(@class, 'job-details-jobs-unified-top-card__tertiary-description-container')]//span[contains(@class, 'tvm__text')][1]",
+               "//div[contains(@class, 'job-details-jobs-unified-top-card__primary-description-container')]//span[contains(@class, 'tvm__text')][1]",
+               # First tvm__text element (usually location)
+               "//span[contains(@class, 'tvm__text') and contains(@class, 'tvm__text--low-emphasis')][1]",
+               # Location patterns in text
+               "//span[contains(@class, 'tvm__text') and (contains(text(), 'United States') or contains(text(), 'FL') or contains(text(), 'MD') or contains(text(), 'PA') or contains(text(), 'VA') or contains(text(), 'DE') or contains(text(), 'CA') or contains(text(), 'NY') or contains(text(), 'TX') or contains(text(), 'Remote') or contains(text(), 'Hybrid'))]",
+               # Before the first separator (·)
+               "//span[contains(@class, 'tvm__text')][preceding-sibling::span[contains(@class, 'white-space-pre')][1]]",
+               # In the location-specific containers
+               "//span[contains(@class, 'tvm__text') and not(contains(text(), 'ago')) and not(contains(text(), 'people')) and not(contains(text(), 'Promoted')) and not(contains(text(), 'Responses'))]",
+               # Generic location fallback
+               "//span[contains(@class, 't-black--light')]//span[1]"
+            ]
+            pay_rate_xpaths = [
                   # Absolute XPaths
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
                   "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong",
@@ -444,11 +579,135 @@ class ApplyBot:
                   "//button[contains(., '$')]//span" 
                ]
          elif 'indeed.com' in url:
-            # TODO: Indeed XPATHS (these need to be adjusted, both the actual XPaths but also they need to be adjusted to work with the new array input args. for the function 'get_element_text_from_xpaths')
-            job_title_xpath = "//h1[@class='jobsearch-JobInfoHeader-title']"
-            employer_xpath = "//div[contains(@class, 'jobsearch-InlineCompanyRating')]//a"
-            location_xpath = "//div[contains(@class, 'jobsearch-JobInfoHeader-subtitle')]//div[contains(@class, 'location')]"
-            pay_rate_xpath = "//span[contains(@class, 'salary')]//span"
+            if self.search_terms_in_page(["cloudflare", "captcha"]):
+               type_text("🚫 ERROR | scrape_job_info | Indeed's Cloudflare Has Been Detected!")
+               type_text("")
+               type_text("Press Enter AFTER you have successfully bypassed the captcha...")
+               input("") # Waits for user input
+            # Arrays of XPaths for each field
+            job_title_xpaths = [
+               # Direct XPaths using class attributes
+               "//h1[@class='jobsearch-JobInfoHeader-title css-1b1jw74 e1tiznh50']/span",
+               "//h1[contains(@class, 'jobsearch-JobInfoHeader-title')]/span",
+               "//h1[contains(@class, 'css-1b1jw74')]/span",
+               "//div[contains(@class, 'jobsearch-JobInfoHeader-title-container')]//h1/span",
+               # XPaths using data-testid
+               "//h1[@data-testid='jobsearch-JobInfoHeader-title']/span",
+               "//h1[@data-testid='jobsearch-JobInfoHeader-title']",
+               # More flexible XPaths based on structure
+               "//h1[contains(@class, 'jobsearch-JobInfoHeader-title')]//span",
+               "//div[contains(@class, 'jobsearch-JobInfoHeader-title-container')]//span",
+               # Generic h1 elements that might contain job titles
+               "//main//h1//span",
+               "//div[contains(@class, 'main')]//h1//span",
+               "//h1[normalize-space(text()) != '']//span",
+               "//h1//span[normalize-space(text()) != '']",
+               # Fallback to any h1 with substantial text
+               "//h1[string-length(normalize-space(text())) > 5]",
+               "//h1//span[string-length(normalize-space(text())) > 5]",
+            ]
+            # Arrays of XPaths for employer field
+            employer_xpaths = [
+               # Direct XPaths using data attributes
+               "//div[@data-company-name='true']//a",
+               "//div[@data-testid='inlineHeader-companyName']//a",
+               "//div[@data-company-name='true' and @data-testid='inlineHeader-companyName']//a",
+               # XPaths using class attributes
+               "//div[contains(@class, 'css-19qk8gi')]//a",
+               "//div[contains(@class, 'eu4oa1w0')]//a",
+               "//span[contains(@class, 'css-qcqa6h')]//a",
+               "//a[contains(@class, 'css-1h4l2d7')]",
+               "//a[contains(@class, 'e19afand0')]",
+               # XPaths using element structure and relationships
+               "//div[@data-company-name='true']/span/a",
+               "//div[@data-testid='inlineHeader-companyName']/span/a",
+               "//span[contains(@class, 'css-qcqa6h')]/a",
+               # Text-based XPaths targeting employer names
+               "//a[contains(@href, '/cmp/')]",
+               "//a[contains(@href, 'cmpid=') or contains(@href, '/cmp/')]",
+               "//a[contains(@aria-label, '(opens in a new tab)')]",
+               # More generic employer patterns
+               "//div[contains(@class, 'company')]//a",
+               "//span[contains(@class, 'company')]//a",
+               "//a[contains(@class, 'company')]",
+               # Final fallbacks
+               "//div[@data-company-name='true']",
+               "//div[@data-testid='inlineHeader-companyName']",
+            ]
+            # Arrays of XPaths for location field
+            location_xpaths = [
+               # Direct XPaths using data attributes
+               "//div[@data-testid='inlineHeader-companyLocation']/div",
+               "//div[@data-testid='inlineHeader-companyLocation']",
+               # XPaths using class attributes
+               "//div[contains(@class, 'css-89aoy7')]/div",
+               "//div[contains(@class, 'eu4oa1w0')]/div",
+               "//div[contains(@class, 'css-89aoy7')]",
+               "//div[contains(@class, 'eu4oa1w0') and contains(@class, 'css-89aoy7')]",
+               # Structural XPaths
+               "//div[@data-testid='inlineHeader-companyLocation']//div",
+               "//div[contains(@class, 'css-89aoy7')]//div",
+               # Location-specific text patterns
+               "//div[contains(text(), ',') and string-length(normalize-space(text())) > 3]",
+               "//div[contains(text(), 'CA') or contains(text(), 'NY') or contains(text(), 'TX') or contains(text(), 'FL') or contains(text(), 'IL') or contains(text(), 'PA') or contains(text(), 'OH') or contains(text(), 'GA') or contains(text(), 'NC') or contains(text(), 'MI') or contains(text(), 'NJ') or contains(text(), 'VA') or contains(text(), 'WA') or contains(text(), 'MA') or contains(text(), 'AZ') or contains(text(), 'CO') or contains(text(), 'TN')]",
+               "//div[matches(text(), '[A-Z][a-z]+,\\s*[A-Z]{2}')]",
+               "//div[matches(text(), '\\d{5}')]",
+               # Generic location patterns
+               "//div[contains(@class, 'location')]",
+               "//div[contains(@class, 'companyLocation')]",
+               "//div[contains(@data-testid, 'location')]",
+               # Proximity to company elements
+               "//div[@data-testid='inlineHeader-companyName']/following-sibling::div//div",
+               "//div[contains(@class, 'css-19qk8gi')]/following-sibling::div//div",
+               # Fallback to any div with location-like text
+               "//div[contains(normalize-space(text()), ',') and string-length(normalize-space(text())) > 5 and string-length(normalize-space(text())) < 100]",
+               "//div[normalize-space(text()) != '' and string-length(normalize-space(text())) < 150]",
+               # Final fallbacks
+               "//div[@data-testid='inlineHeader-companyLocation']",
+            ]
+            # Arrays of XPaths for pay rate field
+            pay_rate_xpaths = [
+               # Most specific: ID + class combinations
+               "//div[@id='salaryInfoAndJobType']//span[contains(text(), '$')]",
+               
+               # ID-based selectors with text validation
+               "//div[@id='salaryInfoAndJobType']/span[1][contains(text(), '$')]",
+               "//div[@id='salaryInfoAndJobType']//span[contains(text(), '$')]",
+               
+               # Structural relationships within salary container
+               "//div[@id='salaryInfoAndJobType']/span[not(contains(@class, 'css-1u1g3ig'))]",
+               "//div[@id='salaryInfoAndJobType']/span[position()=1]",
+               
+               # Specific salary text patterns with context
+               "//span[contains(text(), '$') and (contains(text(), 'year') or contains(text(), 'hour') or contains(text(), 'month') or contains(text(), 'week') or contains(text(), 'day') or contains(text(), 'an hour') or contains(text(), 'a year'))]",
+               "//span[contains(text(), '$') and contains(text(), 'a year')]",
+               "//span[contains(text(), '$') and contains(text(), 'an hour')]",
+               "//span[contains(text(), '$') and contains(text(), '-')]",
+               
+               # Regex patterns for precise salary formats
+               "//span[matches(text(), '\\$[0-9,]+ - \\$[0-9,]+ a year')]",
+               "//span[matches(text(), '\\$[0-9,]+ an hour')]",
+               "//span[matches(text(), '\\$[0-9,]+\\.?[0-9]*.*(hour|year|month|week|day)')]",
+               
+               # Proximity to other job elements (more contextual)
+               "//div[@data-testid='inlineHeader-companyLocation']/following-sibling::div//span[contains(text(), '$')]",
+               "//h1/following::span[contains(text(), '$')]",
+               
+               # Text content filters with length validation
+               "//span[contains(text(), '$') and string-length(normalize-space(text())) > 5 and string-length(normalize-space(text())) < 50]",
+               "//span[starts-with(normalize-space(text()), '$') and string-length(normalize-space(text())) > 5]",
+               
+               # Generic salary patterns (with some context)
+               "//span[contains(@class, 'salary') and contains(text(), '$')]",
+               "//div[contains(@class, 'salary')]//span[contains(text(), '$')]",
+               
+               # Fallback to salary container without class specificity
+               "//div[@id='salaryInfoAndJobType']/span[contains(text(), '$')]",
+               
+               # Final fallbacks with strong text validation
+               "//span[contains(text(), '$') and string-length(normalize-space(text())) > 5 and string-length(normalize-space(text())) < 100]",
+               "//*[contains(text(), '$') and (contains(text(), 'year') or contains(text(), 'hour') or contains(text(), 'month') or contains(text(), 'week') or contains(text(), 'day')) and string-length(normalize-space(text())) < 100]"
+            ]
          else:
             type_text(f"Unsupported platform for URL: {url}")
             return None
@@ -1577,10 +1836,10 @@ class ApplyBot:
                   r"dod.*secret"
                ],
                "Confidential": [
-                  r"\bconfidential\s*clearance\b",
-                  r"requires.*confidential",
-                  r"must.*have.*confidential",
-                  r"active.*confidential"
+                  r"\bconfidential\s*clearance\b(?!.*(eap|wellness|accommodation|benefits|hr|human resources))",
+                  r"requires.*confidential.*clearance(?!.*(eap|wellness|accommodation|benefits))",
+                  r"must.*have.*confidential.*clearance(?!.*(eap|wellness|accommodation|benefits))",
+                  r"active.*confidential.*clearance(?!.*(eap|wellness|accommodation|benefits))"
                ],
                "Public Trust": [
                   r"public\s*trust",
@@ -1659,6 +1918,8 @@ class ApplyBot:
    def print_statistics(self):
       type_text("")
       print_applybot_mascot_w_statistics() # Print the mascot with statistics text
+      type_text("")
+      self.get_domain_statistics_summary()
       type_text("")
       self.get_xpath_statistics()
       type_text("")
@@ -1887,7 +2148,8 @@ def normalize_pay_rate(pay_rate_text):
    
    # Check for non-salary keywords after conversion (for when it grabs the wrong information, typically when the place it looks for the pay rate does not exist)
    if any(keyword in text for keyword in ["hybrid", "on-site", "site", "remote", "full-time", "full", "part", "part-time", "time"]):
-      return ("?", "Could not find or parse pay rate.")
+      if not re.search(r'\d', text): # if a number is NOT present in text, return failure
+         return ("?", "Could not find or parse pay rate.")
    
    # Handle the specific case of "$30/yr" typo (likely meant $30/hr)
    if re.search(r'\$\s*(\d+[.,]?\d*)\s*/?\s*yr', text) and not re.search(r'k\s*/?\s*yr', text):
@@ -1900,22 +2162,47 @@ def normalize_pay_rate(pay_rate_text):
                annual_salary = hourly_rate * 40 * 52  # 40 hrs/week * 52 weeks
                return (f"${annual_salary:,.0f}", text)
    
-   # Handle hourly rates (single or range)
-   hourly_matches = re.findall(r'\$\s*(\d+[.,]?\d*)\s*/?\s*hr\b', text)
-   if hourly_matches:
-      if len(hourly_matches) == 1: # Single hourly rate
-         hourly_rate = float(hourly_matches[0].replace(',', ''))
-         annual_salary = hourly_rate * 40 * 52
-         return (f"${annual_salary:,.0f}", text)
-      elif len(hourly_matches) >= 2: # Handle multiple hourly rates (take first two as range, hourly wage -> salary midpoint)
-         hourly_low = float(hourly_matches[0].replace(',', ''))
-         hourly_high = float(hourly_matches[1].replace(',', ''))
-         annual_low = hourly_low * 40 * 52
-         annual_high = hourly_high * 40 * 52
-         midpoint = (annual_low + annual_high) / 2
-         midpoint_rounded = round(midpoint)  # Don't round to nearest thousand for hourly ranges
-         note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
-         return (f"${midpoint_rounded:,.0f}", note)
+   # Handle hourly rates (single or range) - improved pattern to catch all formats
+   # More comprehensive pattern that handles ranges with different separators
+   hourly_range_pattern = r'\$\s*(\d+[.,]?\d*)\s*(?:-\s*|\s+to\s+|\s*-\s*)(?:\$\s*)?(\d+[.,]?\d*)\s*(?:/?\s*hr\b|/?\s*hour\b|an?\s+hour|per\s+hour)'
+   hourly_range_match = re.search(hourly_range_pattern, text)
+   if hourly_range_match:
+      hourly_low = float(hourly_range_match.group(1).replace(',', ''))
+      hourly_high = float(hourly_range_match.group(2).replace(',', ''))
+      # Calculate midpoint of hourly range first, then convert to annual
+      hourly_midpoint = (hourly_low + hourly_high) / 2
+      annual_salary = hourly_midpoint * 40 * 52
+      annual_salary_rounded = round(annual_salary)
+      note = f"Original range: ${hourly_low:.2f}/hr - ${hourly_high:.2f}/hr"
+      return (f"${annual_salary_rounded:,.0f}", note)
+
+   # Handle the case where we find multiple hourly rates but they weren't captured as a range
+   # This catches cases like "$23.50 - $26.00 an hour" where the pattern might miss
+   hourly_matches = re.findall(r'\$\s*(\d+[.,]?\d*)\s*(?:/?\s*hr\b|/?\s*hour\b|an?\s+hour|per\s+hour)', text)
+   if len(hourly_matches) >= 2:
+      hourly_low = float(hourly_matches[0].replace(',', ''))
+      hourly_high = float(hourly_matches[1].replace(',', ''))
+      # Calculate midpoint of hourly range first, then convert to annual
+      hourly_midpoint = (hourly_low + hourly_high) / 2
+      annual_salary = hourly_midpoint * 40 * 52
+      annual_salary_rounded = round(annual_salary)
+      note = f"Original range: ${hourly_low:.2f}/hr - ${hourly_high:.2f}/hr"
+      return (f"${annual_salary_rounded:,.0f}", note)
+   
+   # Handle single hourly rates
+   hourly_single_pattern = r'\$\s*(\d+[.,]?\d*)\s*(?:/?\s*hr\b|/?\s*hour\b|an?\s+hour|per\s+hour)'
+   hourly_single_match = re.search(hourly_single_pattern, text)
+   if hourly_single_match:
+      hourly_rate = float(hourly_single_match.group(1).replace(',', ''))
+      annual_salary = hourly_rate * 40 * 52
+      return (f"${annual_salary:,.0f}", text)
+   
+   # Additional pattern for "X hour" format (without $ sign before "hour")
+   simple_hourly_match = re.search(r'\$\s*(\d+[.,]?\d*)\s+hour', text)
+   if simple_hourly_match:
+      hourly_rate = float(simple_hourly_match.group(1).replace(',', ''))
+      annual_salary = hourly_rate * 40 * 52
+      return (f"${annual_salary:,.0f}", text)
    
    # Handle annual ranges with K notation first (before individual K matches)
    k_range_pattern = r'\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr\s*[-–—]\s*\$\s*(\d+[.,]?\d*)\s*k\s*/?\s*yr'
@@ -2162,10 +2449,10 @@ def main():
    type_text("") # Divider
    
    # Initialize ApplyBot (will call setup_driver, which will open browser)
-   ApplyBot = ApplyBot(config=config, headless=args.headless)
+   ApplyBotInstance = ApplyBot(config=config, headless=args.headless)
    
    # Login manually if needed
-   ApplyBot.linkedin_login()
+   ApplyBotInstance.linkedin_login()
    
    # Prepare output CSV
    fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance']
@@ -2184,7 +2471,7 @@ def main():
             type_text(f"\nProcessing link {i}/{len(cleaned_links)}")
             
             # Scrape the job info
-            job_info = ApplyBot.scrape_job_info(link)
+            job_info = ApplyBotInstance.scrape_job_info(link)
             
             if job_info and job_info != "incompatible":  # ← CHECK FOR INCOMPATIBLE EXPLICITLY
                writer.writerow(job_info)
@@ -2234,7 +2521,7 @@ def main():
       type_text("Press Enter to exit...")
       input()
    finally:
-      ApplyBot.close()
+      ApplyBotInstance.close()
 
 
 
