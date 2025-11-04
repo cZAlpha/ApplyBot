@@ -35,6 +35,7 @@
    "agree_not_to_use_ai": "Yes",
    "agree_to_drug_test": "Yes",
    "agree_to_background_check": "Yes",
+   "felony": "No",
    "dow_available_for_interview": "Weekday",
    "time_available_for_interview": "Anytime"
 }

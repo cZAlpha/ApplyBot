@@ -28,28 +28,28 @@ Made with love.
     +-------------------------------+
     |       1. Job Finding          |
     |                               |
-    |          <NOT DONE>           |
+    |        <NOT STARTED>          |
     |  - Search on job boards       |
-    |  - Identify target companies  |
+    |  - Uses config settings       |
     +-------------------------------+
                     |
-                    | List of Job URLs/Keywords
+                    | CSV of Job URLs
                     v
     +-------------------------------+
     |       2. Job Scraping         |
     |                               |
     |            <WIP>              |
-    |  - Extract job details        |
-    |  - Parse requirements         |
-    |  - Save to database/file      |
+    |  - Scrape job details         |
+    |  - Filter out based on config |
+    |  - Save to CSV                |
     +-------------------------------+
                     |
-                    | Structured Job Data
+                    | CSV of Job Details
                     v
     +-------------------------------+
     |      3. Applying to Jobs      |
     |                               |
-    |          <WIP>           |
+    |            <WIP>              |
     |  - Review scraped data        |
     |  - Tailor resume/cover letter |
     |  - Submit application         |
@@ -57,21 +57,31 @@ Made with love.
 ```
 
 # Todo
-- Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped.
-- Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked.
-- Write an algorithm to determine how many skills are listed in the job that the user has from the config, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.
+### General
 - Reinforce anti-bot countermeasures.
   - Find a way to bypass Cloudflare anti-bot protection for Indeed
+      - Not sure if this is even possible, which really sucks
   - Find a way to bypass LinkedIn's captcha on login to make it automatic
-- Automate application process for easy apply on LinkedIn and Indeed.
-- Automate application process for Workday websites as much as possible.
-  - This will involve account creation, and tracking of login information. This should be done in a file outside of this project so that login information is not sent to Github, likely in a CSV file on the desktop, or wherever and whose file path will be set in a config.
-- Integrate generative AI using Ollama to adjust resume for specific job postings to ensure highest likelihood of bypassing ATS.
+### 1. Job Finding
 - Add ability for this program to find jobs based on inputted job titles in config file, location, and distance from location as well as other applicable information such as: pay rate, experience level, etc. (this is highly platform dependant)
-- More that I haven't thought of yet.
+### 2. Job Scraping
+- Ensure that the job description is scraped and placed into the output CSV file, as this is needed for the AI resume tailor
+- Adjust calls to the scraping for specific element function to run through the statistically optimized list of xpaths first, and then fall back on the default list (basically how it is currently done as of writing this). This will allow for better efficiency when enough jobs have been scraped
+- Have the bot search for "No longer accepting applications". If this is detected at all, disregard the current link being scraped, as its not available. This should be another statistic tracked
+  - This is done for Indeed.com but not for Linkedin.com
+- Write an algorithm to determine how many skills are listed in the job that the user has from the config, giving a percentage score to each job and sorting them by said score. More things should be added to how this score it calculated as the project moves forward.
+### 3. Applying to Jobs
+- Automate application process for easy apply on LinkedIn and Indeed
+- Automate application process for Workday websites as much as possible
+- Finish automating Greenhouse.io websites as much as possible
+- These will involve account creation, and tracking of login information. This should be done in a file outside of this project so that login information is not sent to Github, likely in a CSV file on the desktop, or wherever and whose file path will be set in a config.
+- Finish generative AI using Ollama to adjust resume for specific job postings to ensure highest likelihood of bypassing ATS.
+  - Status: Ridden with issues
+    - Typically lengthens resume from 1 -> 2 pages due to mainly formatting issues.
+    - Will relatively often lie about skills the user possesses.
 <br><br>
 
-## Note From Author
+## Notes From Author
 
 ### Your Data
 I'm not Google (stop using Chrome!), this bot does not and will never collect you data.
@@ -80,19 +90,12 @@ I'm not Google (stop using Chrome!), this bot does not and will never collect yo
 In all of the text below, I have omitted my name and paths that may include PII and replaced it with an ellipses ("..."). Keep this in mind when troubleshooting and just in general.
 <br><br>
 
-### Don't Worry About This Warning
-Its probably mildly important but frankly I do not care, if you see this and figure out how to get it to stop, shoot me an email and/or PR.
-```
-/.../ApplyBot/env/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
-  warnings.warn(
-```
-
 ### Questions?
 If you have any questions, reach out to me.
 
 <br><br>
 
-# Sample Usage (OUTDATED)
+# Sample Usage
 
 Once you have found a bunch of job listings you'd like to scrape the information from, put it in a spreadsheet of your choosing, ensuring that all listing URLs are on different lines. Then export that as a CSV file. Below, this is called 'input.csv'. You can then designate the name for the output file, below this is called 'output.csv'.
 <br>
@@ -156,10 +159,10 @@ Failed links:
 
 1. base resume (from config) 
 2. feed base resume into LLM with prompt that includes the job description and/or keywords from the job description
-3. adjusts the bullet points in your resume while keeping the # of chars per line the same as to avoid formatting issues
-4. Generates new resume pdf and shows user the PDF for approval (this could be a flag in the main.py args to avoid having to approve)
-5. Uses the tailored resume to apply to the job
-6. Places new resume pdf in a folder such that /<employer>/<job_title>/<yourbaseresumename>_<job_title>.pdf
+3. adjusts the bullet points in your resume while keeping the # of chars per line the same as to avoid formatting issues (still working out the kinks)
+4. Generates new resume pdf and shows user the PDF for approval (this could be a flag in the main.py args to avoid having to approve | this part is not done yet)
+5. Uses the tailored resume to apply to the job (not done)
+6. Places new resume pdf in a folder such that /employer/job_title/yourbaseresumename_job_title.pdf (not done)
  
 
 <br><br>
@@ -205,6 +208,7 @@ Format:
    "truth_statement": "Yes",
    "agree_not_to_use_ai": "Yes",
    "agree_to_drug_test": "Yes",
+   "felony": "No",
    "agree_to_background_check": "Yes",
    "dow_available_for_interview": "Weekday",
    "time_available_for_interview": "Anytime"
@@ -239,149 +243,184 @@ This is not yet implemented but in the future will be used to score jobs that ha
 Your first name.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### last_name
 Your last name.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### email
 Your email address.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### phone
 Your phone number.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### country
 Your country of residence (e.x. United States by default)
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### address
 Your street address.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### city
 Your city of residence.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### state
 Your state of residence.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### zip_code
 Your zip code.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### linkedin_url
 Your LinkedIn profile URL.
 #### Notes:
 Used to autofill application forms.
+<br><br>
 
 ### source
 Where you heard about the job application system.
 #### Notes:
 Used to autofill application forms. Default: "Indeed", but you can do whatever you want, as long as it would be listed in a dropdown commonly.
+<br><br>
 
 ### is_18_or_older
 Whether you are 18 years or older.
 #### Notes:
 Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+<br><br>
 
 ### work_eligible
 Whether you are eligible to work in the country.
 #### Notes:
 Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+<br><br>
 
 ### requires_sponsorship
 Whether you require visa sponsorship.
 #### Notes:
 Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+<br><br>
 
 ### us_citizen
 Whether you are a US citizen.
 #### Notes:
 Used to autofill application forms. Options: "True" or "False", "Yes" or "No" (there are fallback values that should avoid issues)
+<br><br>
 
 ### education_level
 Your highest education level.
 #### Notes:
 Used to autofill application forms. Options: "Bachelor's Degree", "Master's Degree", "Doctorate", "High School", etc.
+<br><br>
 
 ### text_consent
 Whether you consent to text communications.
 #### Notes:
 Used to autofill application forms. Options: "Yes" or "No". Always say no, why would you want these weirdos texting your phone?
+<br><br>
 
 ### desired_salary
 Your desired annual salary. This will be the value auto-filled into applications, NOT what will determine if a job listing will be thrown out when scraping.
 #### Notes:
 Used to autofill application forms. DO NOT USE COMMAS (e.x. "50000" NOT "50,000").
+<br><br>
 
 ### start_date
 When you can start working.
 #### Notes:
 Used to autofill application forms. Options: "1", "2", etc., this dictates how many WEEKS from today's date that your availability will be.
+<br><br>
 
 ### disability
 Disability status disclosure.
 #### Notes:
-Used to autofill EEO forms. Options: "optout", "Yes", "No"<br>
+Used to autofill EEO forms. Options: "optout", "Yes", "No"
 I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal, plus if they're able to see your picked option here, they'll likely throw your application out.
+<br><br>
 
 ### veteran
 Veteran status disclosure.
 #### Notes:
-Used to autofill EEO forms. Options: "optout", "Yes", "No"<br>
+Used to autofill EEO forms. Options: "optout", "Yes", "No"
 I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+<br><br>
 
 ### gender
 Gender disclosure.
 #### Notes:
-Used to autofill EEO forms. Options: "optout", "Male", "Female", "Non-binary"<br>
+Used to autofill EEO forms. Options: "optout", "Male", "Female", "Non-binary"
 I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+<br><br>
 
 ### race
 Race/ethnicity disclosure.
 #### Notes:
-Used to autofill EEO forms. Options: "optout", "White", "Black", "Hispanic", "Asian", etc. <br>
+Used to autofill EEO forms. Options: "optout", "White", "Black", "Hispanic", "Asian", etc.
 I highly suggest to always optout, as you do not need to help companies in their quest to virtue signal.
+<br><br>
 
 ### truth_statement
 Affirmation that application information is truthful.
 #### Notes:
 Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+<br><br>
 
 ### agree_not_to_use_ai
 Agreement not to use AI for work tasks.
 #### Notes:
 Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+<br><br>
 
 ### agree_to_drug_test
 Agreement to submit to drug testing.
 #### Notes:
 Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+<br><br>
 
 ### agree_to_background_check
 Agreement to background check.
 #### Notes:
 Used to autofill application forms. Options: "Yes" or "No" (If you don't have this as yes, you will never get a job!)
+<br><br>
+
+### felony
+Do you have a felony on your record?
+#### Notes:
+Used to autofill application forms. Options: "Yes" or "No"
+<br><br>
 
 ### dow_available_for_interview
 The day(s) of the week that you are available for interviews, used solely for Indeed.com.
 #### Notes:
 This is not yet implemented but in the future will be used to input into the interview availability question on Indeed.com's easy apply. Options: "Weekday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
+<br><br>
 
 ### time_available_for_interview
 The time(s) that you are available for interviews, used solely for Indeed.com.
 #### Notes:
 This is not yet implemented but in the future will be used to input into the interview availability question on Indeed.com's easy apply. Options: "Anytime" (8am-9pm), "Morning" (8am - 12pm), "Afternoon" (12pm - 5pm), "Evening" (5pm - 9pm).
+<br><br>
 
 # Good Luck!
