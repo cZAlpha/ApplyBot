@@ -93,10 +93,12 @@ class ApplyBot:
       firefox_options.set_preference("browser.safebrowsing.phishing.enabled", False)
       
       # Realistic browser behavior
-      firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
-      firefox_options.set_preference("browser.startup.homepage", "about:blank")
       firefox_options.set_preference("browser.cache.disk.enable", True)
       firefox_options.set_preference("browser.cache.memory.enable", True)
+      
+      # ONLY UNCOMMENT IF YOU WANT IT TO COPY YOUR OPEN BROWSER
+      # firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
+      # firefox_options.set_preference("browser.startup.homepage", "about:blank")
       
       # Disable automation logging
       firefox_options.set_preference("remote.active-protocols", 2)
@@ -511,6 +513,8 @@ class ApplyBot:
       """Scrape job information from a single URL"""
       type_text(f"\nScraping: {url}")
       
+      is_easy_apply = False # keeps track of if the current job is an easy apply job (really only applicable to Linkedin and Indeed)
+      
       try:
          # Keep the webdriver evasion
          self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -527,6 +531,10 @@ class ApplyBot:
          
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
+            if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
+               return "closed"
+            if self.search_terms_in_page(["Easy Apply"]): # if the job is an easy apply
+               is_easy_apply = True
             # Arrays of XPaths for each field
             job_title_xpaths = [
                # Absolute XPaths
@@ -605,6 +613,8 @@ class ApplyBot:
                input("") # Waits for user input
             if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
                return "closed"
+            if self.search_terms_in_page(["Easy Apply", "Apply Now"]): # if the job is an easy apply
+               is_easy_apply = True
             # Arrays of XPaths for each field
             job_title_xpaths = [
                # Direct XPaths using class attributes
@@ -742,6 +752,7 @@ class ApplyBot:
          pay_rate_notes = normalized_pay_rate[1] # Grab the second element of the tuple, that being the notes
          security_clearance = self.detect_security_clearance() # Detected security clearance
          is_user_cleared =  self.compare_clearance_from_config(security_clearance) # Compares the user's security clearance against the detected security clearance
+         easy_apply = is_easy_apply # Set within conditionals section above
          
          # If the user is not cleared for the job's security clearance requirements, disregard job posting
          if not is_user_cleared: 
@@ -758,7 +769,8 @@ class ApplyBot:
             'Job Ad': url,
             'Date Found': datetime.now().strftime("%m/%d/%Y"),
             'Notes': pay_rate_notes, # Any other notes can be appended to this as needed
-            'Security Clearance': security_clearance # If the user does not possess a security clearance, this will always be 'none', as jobs requiring that will be thrown out
+            'Security Clearance': security_clearance, # If the user does not possess a security clearance, this will always be 'none', as jobs requiring that will be thrown out
+            'Easy Apply': easy_apply # True or fa;se
          }
          
          # Print scraped info for verification
@@ -768,6 +780,7 @@ class ApplyBot:
          type_text(f"  Pay Rate: {job_info['Pay Rate']}")
          type_text(f"  Notes: {job_info['Notes']}")
          type_text(f"  Clearance Level: {job_info['Security Clearance']}")
+         type_text(f"  Easy Apply: {job_info['Easy Apply']}")
          
          # Random scrolling after scraping to make it seem less suspicious
          self.human_scroll()
@@ -2478,7 +2491,7 @@ def main():
    ApplyBotInstance.linkedin_login()
    
    # Prepare output CSV
-   fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance']
+   fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance', 'Easy Apply']
    
    try:
       with open(args.output_csv, 'w', newline='', encoding='utf-8') as csvfile:

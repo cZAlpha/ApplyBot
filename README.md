@@ -101,7 +101,7 @@ Once you have found a bunch of job listings you'd like to scrape the information
 <br>
 The process of sourcing job listing URLs will eventually be automated.
 ```
-.../python .../main.py input.csv output.csv --config="./config.json"
+.../python .../main.py input.csv output.csv --config="config.json"
 ```
 
 ## input.csv
@@ -110,47 +110,157 @@ The input file. Should contain job listing URLs on each line. The name does not 
 ## output.csv
 The output file. The name does not matter, as long as its a CSV.
 
-## --config="./config.json"
+## --config="config.json"
 The config file. This uses the default one, which may or may not work. I would suggest making your own. If you name it "my_config.json", it will not be included in Git.
 
 <br><br>
 
-# Sample Output (OUTDATED)
+# Sample Output 
 ```
-Reading job links...
-Found 41 unique job links
-Using real Firefox profile: /.../....default-release
-MANUAL LOGIN REQUIRED:
-1. A Firefox window will open
-2. Sign in to LinkedIn manually
-3. Come back here and press Enter
-Press Enter AFTER you have successfully signed in...
+==================================================
 
-Processing link 1/41
+
+╭─────────────────╮
+│    ApplyBot    │
+╰─────────────────╯
+
+    ∧___∧
+   ( •ㅅ•) 
+   /     ♡ 
+   (   ⌒ ヽ  
+   ＼_ﾉ  ＿」  
+    ♪ ~ ♪
+
+   Made by cZAlpha
+
+
+==================================================
+
+Normalizing Job Listing URLs...
+Successfully normalized 39/39 of input links.
+
+==================================================
+
+✅ Config loaded from 'my_config.json'
+
+==================================================
+
+🕒 Parsing job links from input.csv...
+
+
+✅ Found 39 unique job links
+
+==================================================
+
+Optimized Job Scraping XPaths (JSON format)
+
+🕒 Opening browser with user profile...
+    Profile: /.../Firefox/Profiles/l2iog7ld.default-release
+
+==================================================
+
+Processing link 1/39
+
+Scraping: https://www.linkedin.com/jobs/view/4320419786/
+  Job Title was found with XPath #5: //h1[contains(@class, 't-24') and contains(@class, 't-bold')]
+XPath statistics saved to xpath_stats.json
+  Employer was found with XPath #3: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
+XPath statistics saved to xpath_stats.json
+  Location was found with XPath #3: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
+XPath statistics saved to xpath_stats.json
+  Pay Rate was found with XPath #3: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong
+XPath statistics saved to xpath_stats.json
+  Clearance Check: User has 'none' (0), job requires 'none' (0)
+  ✓ User meets clearance requirement
+  Title: Intermediate Technical Support Analyst
+  Employer: Journal Technologies
+  Location: United States
+  Pay Rate: ?
+  Notes: Could not find or parse pay rate.
+  Clearance Level: None
+  Easy Apply: False
+✅ Successfully scraped and saved
+
+==================================================
 
 ...
 
-Processing link 41/41
+==================================================
 
-Scraping: https://www.linkedin.com/jobs/view/4331820820/?eBP=CwEAAAGaK7o7NrCSP_Z5r7VZV4YfWn0WBRlZsq3m9j4Vlpz-dHllwkp1CkI-5nu0x7ui6peECM9gTYctnEAXlnkmCQhYuKjr7oYcsp0FI2YWDstcQvCAzRspRlEnATq7yttKbhL4DoyPj1ozQbJV3nyxppWtKI7_9JdxmonIMB8vn9jXu0Whte4C7Zf28QugGGHdaTLRdLE25vgK5oA_e4mO53fCTg6dBgXYLm5W7IYbE6xnSQYynbHLUjT0FJTU4y3VGtpR5BB5tpvArCMz-l6yYR22G-nqdYufaHZl5oLStJahu7ZjHERdEXwUh0N81WX-2NI1uL7Nl9j68SoEZNdZIFOiUzRjD2yawMjglAji6FhU65L-s0BXjdt16a44H5HbqSm2pCovhWd_Y43fnJxfTlRP_3V8F30lFsr-BViZfpWTl1mloUkq0GctZHsQ6sMxCXW8dXl01fe2TblcS0pP1jT6GNnz_Gw5XuyualkYwi52TBMd26xS6GXYKmcbfHfG8MMngW_PjA&lici=QWiFA4f6iuFpaMz0Q3oejQ%3D%3D
-  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1
-  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
-  Found with XPath #2: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
-  Title: Programmer I- Custom Reports
-  Employer: Lensa
-  Location: United States
-  Pay Rate: ?
-✓ Successfully scraped and saved
+Processing link 39/39
 
-===================================================
+Scraping: https://www.linkedin.com/jobs/view/4333695534/
+  Job Title was found with XPath #5: //h1[contains(@class, 't-24') and contains(@class, 't-bold')]
+XPath statistics saved to xpath_stats.json
+  Employer was found with XPath #3: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
+XPath statistics saved to xpath_stats.json
+  Location was found with XPath #3: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
+XPath statistics saved to xpath_stats.json
+  Pay Rate was found with XPath #4: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong
+XPath statistics saved to xpath_stats.json
+  Security Clearance: Detected 'Top Secret with Polygraph' with pattern: ts.*sci.*poly
+  Clearance Check: User has 'none' (0), job requires 'top secret with polygraph' (5)
+  ✗ User does NOT meet clearance requirement
+🚫 Job Thrown Out Due to Lack of Security Clearance!
+🚫 Job closed - skipping to next job listing
+
+==================================================
 Scraping Complete!
-Successful: 39
-Failed: 2
+ ✅ Successful: 35
+ 🚫 Failed: 0
 Output saved to: output.csv
 
-Failed links:
-  - https://www.linkedin.com/jobs/view/4332016692/?eBP=CwEAAAGaKIvhSk-ziBRlUPKA56C-O87xlUqNy0MFmKHuBcCo4jr5Fg047M65UCrQlqtzhJIR3VzGmMW7qthPXqGhlJwlgt-0hePQZuGKb7WdYdDg-LGAj8j5gxv5SEqt3ec6XdSNVgOHSZDyqLTDFvpLj05X20ks0PMZ3VfTjyVVaFnMYPBc3wsTJYE7wbnYEbK4cPW7aOO7qK_XFwtLISy1PUF84V6QGyhryzTkbkDL5KsP9_P86J0pAoMui-48E3bVh4MN2Jo_RinqPzmSiG6mQRplr1_lmyQk_5ihlONZyyqOZZNPxXgG6M3WsFvCfQsDA0HYpUlS0eaNg-_Sjq6smoYwSIFxYhCrxvKF7iZo9KShixPyURyq3ETK5wLr5KC8bit1sVw_798QY7oCdUV1sOQrzVI8ClBY1IZc5oIKFrRvoPcny4mMkJkIm7xJmQkQNUYXfyi3qAunHgn7945Hz9mkLMMdA-W06wcatfFKLZRod3488YhqVNLR4mbgT_pLt0wotfSyorLr5G8&lici=gznxmE0d7BU4A7rZuiApAA%3D%3D
-  - https://www.linkedin.com/jobs/view/4332450147/?eBP=NOT_ELIGIBLE_FOR_CHARGING&lici=gheChUzG%2B1T%2FK5oZM%2FeaLw%3D%3D
+==================================================
+
+    ∧___∧      __ _        _   _     _   _          
+   ( •ㅅ•)     / _\ |_ __ _| |_(_)___| |_(_) ___ ___ 
+   /     ♡    \ \| __/ _` | __| / __| __| |/ __/ __|
+   (   ⌒ ヽ    _\ \ || (_| | |_| \__ \ |_| | (__\__ \
+   ＼_ﾉ  ＿」   \__/\__\__,_|\__|_|___/\__|_|\___|___/
+    ♪ ~ ♪
+
+DOMAIN STATISTICS SUMMARY
+
+www.linkedin.com:
+  Elements tracked: 4
+  Total hits: 155
+  Job Title: 39 hits
+  Employer: 39 hits
+  Location: 39 hits
+
+XPATH HIT STATISTICS
+
+--- www.linkedin.com ---
+
+Job Title:
+  36 hits: //h1[contains(@class, 't-24') and contains(@class, 't-bold')]
+  3 hits: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1
+
+Employer:
+  28 hits: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
+  7 hits: /html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a
+  4 hits: //div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a
+
+Location:
+  30 hits: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
+  9 hits: /html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]
+
+Pay Rate:
+  17 hits: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong
+  13 hits: /html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong
+  6 hits: /html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong
+  2 hits: //strong[contains(., '$')]
+
+ELEMENT SCRAPING FAILURES
+
+Critical Element Scraping Failures: 0
+Non-Critical Element Scraping Failures: 1
+
+SECURITY CLEARANCE STATISTICS
+
+Number of jobs thrown out due to lack of clearance: 4
+
+(env) ...-MacBook-Pro ApplyBot % 
 ```
 
 <br><br>
