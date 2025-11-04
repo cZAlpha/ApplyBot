@@ -483,6 +483,29 @@ class ApplyBot:
       else:
          type_text("🚫 ERROR | search_terms_in_page | Driver not found!")
          return False
+      
+   def search_terms_in_element(self, xpath, terms):
+      """Search for multiple terms within a specific element, return found ones"""
+      if self.driver:
+         try:
+               # Find the element using the provided XPath
+               element = self.driver.find_element(By.XPATH, xpath)
+               element_text = element.text.lower()
+               found = []
+               
+               for term in terms:
+                  if term.lower() in element_text:
+                     found.append(term)
+               
+               return found
+               
+         except Exception as e:
+               type_text(f"🚫 ERROR | search_terms_in_element | Element not found: {e}")
+               return False
+      
+      else:
+         type_text("🚫 ERROR | search_terms_in_element | Driver not found!")
+         return False
    
    def get_element_text_from_xpaths(self, element_name, xpaths, default="?", critical=False):
       """Try multiple XPaths until one works"""
@@ -533,7 +556,7 @@ class ApplyBot:
          if 'linkedin.com' in url:
             if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications", "No longer accepting applications"]):
                return "closed"
-            if self.search_terms_in_page(["Easy Apply"]): # if the job is an easy apply
+            if self.search_terms_in_page(["Easy Apply"]) and self.search_terms_in_element("/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div", "Easy Apply"): # if the job is an easy apply
                is_easy_apply = True
             # Arrays of XPaths for each field
             job_title_xpaths = [
