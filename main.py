@@ -34,7 +34,8 @@ class ApplyBot:
          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0", 
          "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
       ]
       self.setup_driver()
       
@@ -92,8 +93,8 @@ class ApplyBot:
       firefox_options.set_preference("browser.safebrowsing.phishing.enabled", False)
       
       # Realistic browser behavior
-      #firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
-      #firefox_options.set_preference("browser.startup.homepage", "about:blank")
+      firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
+      firefox_options.set_preference("browser.startup.homepage", "about:blank")
       firefox_options.set_preference("browser.cache.disk.enable", True)
       firefox_options.set_preference("browser.cache.memory.enable", True)
       
