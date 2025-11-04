@@ -531,7 +531,7 @@ class ApplyBot:
          
          # Define XPATHS for different platforms
          if 'linkedin.com' in url:
-            if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
+            if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications", "No longer accepting applications"]):
                return "closed"
             if self.search_terms_in_page(["Easy Apply"]): # if the job is an easy apply
                is_easy_apply = True
