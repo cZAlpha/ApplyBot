@@ -58,6 +58,7 @@ Made with love.
 
 # Todo
 ### General
+- Add ability for normalize_pay_rate to handle stuff like "$6,943/month - $8,083/month", as it cannot do so currently.
 - Reinforce anti-bot countermeasures.
   - Find a way to bypass Cloudflare anti-bot protection for Indeed
       - Not sure if this is even possible, which really sucks
