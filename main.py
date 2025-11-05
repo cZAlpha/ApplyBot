@@ -2246,7 +2246,7 @@ def normalize_pay_rate(pay_rate_text):
       return ("?", "Could not find or parse pay rate. ")
    
    # Check for non-salary keywords after conversion (for when it grabs the wrong information, typically when the place it looks for the pay rate does not exist)
-   if any(keyword in text for keyword in ["hybrid", "on-site", "site", "remote", "full-time", "full", "part", "part-time", "time"]):
+   if any(keyword in text for keyword in ["hybrid", "on-site", "site", "remote", "full-time", "full", "part", "part-time", "time", "temp", "temp-to-hire", "temp to hire", "temporary", "contract"]):
       if not re.search(r'\d', text): # if a number is NOT present in text, return failure
          return ("?", "Could not find or parse pay rate.")
    
