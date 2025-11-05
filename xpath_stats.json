@@ -2,24 +2,27 @@
   "www.linkedin.com": {
     "Job Title": {
       "//h1[contains(@class, 't-24') and contains(@class, 't-bold')]": {
-        "count": 36
+        "count": 75
       },
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1": {
-        "count": 3
+        "count": 4
       },
       "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1": {
+        "count": 1
+      },
+      "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1": {
         "count": 1
       }
     },
     "Employer": {
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a": {
-        "count": 28
+        "count": 29
       },
       "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[1]/div[1]/div/a": {
-        "count": 7
+        "count": 8
       },
       "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a": {
-        "count": 4
+        "count": 43
       },
       "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a": {
         "count": 1
@@ -27,24 +30,24 @@
     },
     "Location": {
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]": {
-        "count": 30
+        "count": 31
       },
       "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]": {
-        "count": 9
+        "count": 10
       },
       "//div[contains(@class, 'job-details-jobs-unified-top-card__tertiary-description-container')]//span[contains(@class, 'tvm__text')][1]": {
-        "count": 1
+        "count": 40
       }
     },
     "Pay Rate": {
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span[1]/span/strong": {
-        "count": 13
+        "count": 14
       },
       "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong": {
         "count": 6
       },
       "//strong[contains(., '$')]": {
-        "count": 3
+        "count": 24
       },
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong": {
         "count": 17
@@ -71,12 +74,12 @@
   "www.indeed.com": {
     "Job Title": {
       "//h1[@class='jobsearch-JobInfoHeader-title css-1b1jw74 e1tiznh50']/span": {
-        "count": 24
+        "count": 38
       }
     },
     "Employer": {
       "//div[@data-company-name='true']//a": {
-        "count": 23
+        "count": 37
       },
       "//div[contains(@class, 'eu4oa1w0')]//a": {
         "count": 1
@@ -84,15 +87,15 @@
     },
     "Location": {
       "//div[@data-testid='inlineHeader-companyLocation']/div": {
-        "count": 24
+        "count": 38
       }
     },
     "Pay Rate": {
       "//div[@id='salaryInfoAndJobType']/span[position()=1]": {
-        "count": 7
+        "count": 16
       },
       "//div[@id='salaryInfoAndJobType']//span[contains(text(), '$')]": {
-        "count": 15
+        "count": 19
       }
     }
   }

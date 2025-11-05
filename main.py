@@ -524,20 +524,20 @@ class ApplyBot:
       """Search for multiple terms within a specific element, return found ones"""
       if self.driver:
          try:
-               # Find the element using the provided XPath
-               element = self.driver.find_element(By.XPATH, xpath)
-               element_text = element.text.lower()
-               found = []
-               
-               for term in terms:
-                  if term.lower() in element_text:
-                     found.append(term)
-               
-               return found
-               
+            # Find the element using the provided XPath
+            element = self.driver.find_element(By.XPATH, xpath)
+            element_text = element.text.lower()
+            found = []
+            
+            for term in terms:
+               if term.lower() in element_text:
+                  found.append(term)
+            
+            return found
+            
          except Exception as e:
-               type_text(f"🚫 ERROR | search_terms_in_element | Element not found: {e}")
-               return False
+            type_text(f"⚠️ WARNING | search_terms_in_element | Element not found")
+            return False
       
       else:
          type_text("🚫 ERROR | search_terms_in_element | Driver not found!")
@@ -2208,7 +2208,7 @@ def pre_process_job_links(csv_file_path, ascending_alphabetically=True):
             domain_url_pairs.append(('', url))
       
       # Sort by domain
-      sorted_pairs = sorted(domain_url_pairs, key=lambda x: x[0], reverse=not ascending_alphabetically)
+      sorted_pairs = sorted(domain_url_pairs, key=lambda x: x[0], reverse=ascending_alphabetically) # Put a 'not' in front of 'ascending_alphabetically' to have linkedin not be first
       
       # Extract just the URLs in sorted order
       cleaned_links = [url for domain, url in sorted_pairs]
