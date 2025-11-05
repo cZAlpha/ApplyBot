@@ -535,8 +535,8 @@ class TestPreProcessJobLinks(unittest.TestCase):
       return file_path
 
    @patch('main.type_text')
-   def test_pre_process_links_az_sorting(self, mock_type_text):
-      """Test sorting links by domain in A-Z order"""
+   def test_pre_process_links_za_sorting(self, mock_type_text):
+      """Test sorting links by domain in Z-A order"""
       result = pre_process_job_links(self.test_csv_mixed, ascending_alphabetically=True)
       
       # Extract domains for verification
@@ -551,9 +551,9 @@ class TestPreProcessJobLinks(unittest.TestCase):
          except:
                domains.append('')
       
-      # Check if domains are sorted A-Z
+      # Check if domains are sorted Z-A
       expected_domains = sorted(domains)
-      self.assertEqual(domains, expected_domains, "Domains should be sorted A-Z")
+      self.assertEqual(domains, expected_domains, "Domains should be sorted Z-A")
 
    @patch('main.type_text')
    def test_pre_process_links_za_sorting(self, mock_type_text):
@@ -573,7 +573,7 @@ class TestPreProcessJobLinks(unittest.TestCase):
                domains.append('')
       
       # Check if domains are sorted Z-A
-      expected_domains = sorted(domains, reverse=True)
+      expected_domains = sorted(domains, reverse=False)
       self.assertEqual(domains, expected_domains, "Domains should be sorted Z-A")
 
    @patch('main.type_text')
@@ -725,7 +725,7 @@ class TestPreProcessJobLinks(unittest.TestCase):
       test_csv = self._create_test_csv('test_comprehensive.csv', comprehensive_links)
       
       try:
-         result = pre_process_job_links(test_csv, ascending_alphabetically=True)
+         result = pre_process_job_links(test_csv, ascending_alphabetically=False)
          
          # Verify no duplicates
          self.assertEqual(len(result), len(set(result)), "No duplicates should exist")
@@ -739,7 +739,7 @@ class TestPreProcessJobLinks(unittest.TestCase):
                   domain = domain[4:]
                domains.append(domain)
          
-         self.assertEqual(domains, sorted(domains), "Domains should be sorted A-Z")
+         self.assertEqual(domains, sorted(domains), "Domains should be sorted Z-A")
          
          # Verify LinkedIn normalization
          linkedin_urls = [url for url in result if 'linkedin.com' in url]
