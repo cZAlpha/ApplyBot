@@ -6,6 +6,9 @@
       },
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[2]/div/h1": {
         "count": 3
+      },
+      "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h1": {
+        "count": 1
       }
     },
     "Employer": {
@@ -17,6 +20,9 @@
       },
       "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a": {
         "count": 4
+      },
+      "/html/body/main/section[1]/div/section[2]/div/div[1]/div/h4/div[1]/span[1]/a": {
+        "count": 1
       }
     },
     "Location": {
@@ -25,6 +31,9 @@
       },
       "/html/body/div[5]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]": {
         "count": 9
+      },
+      "//div[contains(@class, 'job-details-jobs-unified-top-card__tertiary-description-container')]//span[contains(@class, 'tvm__text')][1]": {
+        "count": 1
       }
     },
     "Pay Rate": {
@@ -35,10 +44,55 @@
         "count": 6
       },
       "//strong[contains(., '$')]": {
-        "count": 2
+        "count": 3
       },
       "/html/body/div[6]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[4]/button[1]/span/strong": {
         "count": 17
+      }
+    }
+  },
+  "secure.indeed.com": {
+    "Job Title": {
+      "//h1[string-length(normalize-space(text())) > 5]": {
+        "count": 1
+      }
+    },
+    "Employer": {
+      "//a[contains(@class, 'e19afand0')]": {
+        "count": 1
+      }
+    },
+    "Location": {
+      "//div[contains(@class, 'eu4oa1w0')]/div": {
+        "count": 1
+      }
+    }
+  },
+  "www.indeed.com": {
+    "Job Title": {
+      "//h1[@class='jobsearch-JobInfoHeader-title css-1b1jw74 e1tiznh50']/span": {
+        "count": 24
+      }
+    },
+    "Employer": {
+      "//div[@data-company-name='true']//a": {
+        "count": 23
+      },
+      "//div[contains(@class, 'eu4oa1w0')]//a": {
+        "count": 1
+      }
+    },
+    "Location": {
+      "//div[@data-testid='inlineHeader-companyLocation']/div": {
+        "count": 24
+      }
+    },
+    "Pay Rate": {
+      "//div[@id='salaryInfoAndJobType']/span[position()=1]": {
+        "count": 7
+      },
+      "//div[@id='salaryInfoAndJobType']//span[contains(text(), '$')]": {
+        "count": 15
       }
     }
   }

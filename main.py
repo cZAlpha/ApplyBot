@@ -9,16 +9,19 @@ import json
 import glob
 import random
 import argparse
+import threading
 import pandas as pd
 from urllib.parse import urlparse
 from datetime import datetime
 from selenium import webdriver
+from selenium_stealth import stealth
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webdriver import WebDriver as RemoteWebDriver
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 
 
@@ -29,14 +32,6 @@ class ApplyBot:
          type_text("ERROR: No config was passed into ApplyBot. Please check that you have a configuration file and gave it as an argument when calling main.py!")
          return
       self.config = config
-      self.user_agents = [
-         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0",
-         "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0", 
-         "Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0",
-         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-      ]
       self.setup_driver()
       
       # Statistical tracking variables
@@ -45,7 +40,7 @@ class ApplyBot:
       self.non_critical_element_scrape_fails = 0 # These indicate, if higher than should be expected, that XPaths likely need to be adjusted
       self.jobs_thrown_out_for_lack_of_security_clearance = 0 # The number of jobs thrown out due to the user not meeting the job's security clearance requirements
    
-   def setup_driver(self):
+   def old_setup_driver(self):
       optimized_xpaths = self.get_optimized_xpaths()
       
       if os.path.exists("xpath_stats.json"):
@@ -60,34 +55,33 @@ class ApplyBot:
       if 'firefox_profiles_path' in self.config:
          profiles = glob.glob(self.config['firefox_profiles_path'])
          if profiles:
-            profile_path = profiles[0]
-            # Verify it's actually a Firefox profile directory
-            if os.path.isdir(profile_path) and any(f.endswith('.sqlite') for f in os.listdir(profile_path)):
-               firefox_options.profile = profile_path
-               type_text("🕒 Opening browser with user profile...")
-               type_text(f"    Profile: {profile_path}")
-               type_text("")
-            else:
-               type_text("⚠️ WARNING: Profile path doesn't contain Firefox profile data")
-               profile_path = None
+               profile_path = profiles[0]
+               if os.path.isdir(profile_path) and any(f.endswith('.sqlite') for f in os.listdir(profile_path)):
+                  firefox_options.profile = profile_path
+                  type_text("🕒 Opening browser with user profile...")
+                  type_text(f"    Profile: {profile_path}")
+                  type_text("")
+               else:
+                  type_text("⚠️ WARNING: Profile path doesn't contain Firefox profile data")
+                  profile_path = None
       
       if not profile_path:
          type_text("⚠️ WARNING: Using temporary profile - may increase detection risk")
          type_text("")
       
-      # CRITICAL: Enhanced anti-detection preferences (MUST BE SET BEFORE DRIVER INIT)
+      # CRITICAL: Enhanced anti-detection preferences
       firefox_options.set_preference("dom.webdriver.enabled", False)
       firefox_options.set_preference("useAutomationExtension", False)
       firefox_options.set_preference("marionette", True)
       
       # Disable automation indicators
-      firefox_options.set_preference("dom.disable_beforeunload", False)  # Keep this as True can be suspicious
-      firefox_options.set_preference("dom.popup_maximum", 20)  # More realistic value
+      firefox_options.set_preference("dom.disable_beforeunload", False)
+      firefox_options.set_preference("dom.popup_maximum", 20)
       firefox_options.set_preference("dom.disable_open_during_load", False)
       
       # Disable automation-related features
-      firefox_options.set_preference("media.peerconnection.enabled", False)  # WebRTC fingerprinting
-      firefox_options.set_preference("privacy.resistFingerprinting", False)  # Disable resistFingerprinting
+      firefox_options.set_preference("media.peerconnection.enabled", False)
+      firefox_options.set_preference("privacy.resistFingerprinting", True)
       firefox_options.set_preference("privacy.trackingprotection.enabled", False)
       firefox_options.set_preference("browser.safebrowsing.malware.enabled", False)
       firefox_options.set_preference("browser.safebrowsing.phishing.enabled", False)
@@ -96,18 +90,24 @@ class ApplyBot:
       firefox_options.set_preference("browser.cache.disk.enable", True)
       firefox_options.set_preference("browser.cache.memory.enable", True)
       
-      # ONLY UNCOMMENT IF YOU WANT IT TO COPY YOUR OPEN BROWSER
-      # firefox_options.set_preference("browser.startup.page", 3)  # Restore previous session
-      # firefox_options.set_preference("browser.startup.homepage", "about:blank")
-      
       # Disable automation logging
       firefox_options.set_preference("remote.active-protocols", 2)
       firefox_options.set_preference("remote.log.level", "Off")
       
+      # NEW: Additional stealth preferences
+      firefox_options.set_preference("toolkit.telemetry.reportingpolicy.firstRun", False)
+      firefox_options.set_preference("devtools.jsonview.enabled", False)
+      firefox_options.set_preference("browser.startup.homepage_override.mstone", "ignore")
+      
       # Random but realistic user agent
-      user_agent = random.choice(self.user_agents)
+      firefox_user_agents = [
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0",
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:130.0) Gecko/20100101 Firefox/130.0",
+         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:129.0) Gecko/20100101 Firefox/129.0",
+      ]
+      user_agent = random.choice(firefox_user_agents)
       firefox_options.set_preference("general.useragent.override", user_agent)
-      type_text(f"    User Agent: {user_agent}")
+      type_text(f"    🐵 User Agent: {user_agent}")
       
       # Realistic window size with slight variation
       width = random.randint(1920, 1936)
@@ -122,70 +122,94 @@ class ApplyBot:
       firefox_options.add_argument("--disable-backgrounding-occluded-windows")
       firefox_options.add_argument("--disable-renderer-backgrounding")
       
+      # NEW: Critical arguments for better stealth
+      firefox_options.add_argument("--no-first-run")
+      firefox_options.add_argument("--disable-default-apps")
+      firefox_options.add_argument("--disable-features=TranslateUI")
+      firefox_options.add_argument("--disable-ipc-flooding-protection")
+      
       try:
          # Set page load timeout before creating driver
          service = Service()
          
+         
          # Create driver with all options set
          self.driver = webdriver.Firefox(service=service, options=firefox_options)
-         self.driver.set_page_load_timeout(45)  # Increased timeout
+         self.driver.set_page_load_timeout(45)
          
-         # Enhanced evasion script (executed immediately)
-         self.driver.execute_script("""
-            // Remove automation properties
-            Object.defineProperty(navigator, 'webdriver', {
-               get: () => undefined,
-            });
-            
-            // Override the permissions API
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-               parameters.name === 'notifications' ?
-                  Promise.resolve({ state: Notification.permission }) :
-                  originalQuery(parameters)
-            );
-            
-            // Spoof plugins
-            Object.defineProperty(navigator, 'plugins', {
-               get: () => [
-                  {0: {type: "application/pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
-                  {0: {type: "application/x-google-chrome-pdf", suffixes: "pdf", description: "Portable Document Format"}, name: "Chrome PDF Viewer", filename: "internal-pdf-viewer", description: "Portable Document Format", length: 1},
-                  {0: {type: "application/x-nacl", suffixes: "", description: "Native Client Executable"}, name: "Native Client", filename: "internal-nacl-plugin", description: "Native Client Executable", length: 1}
-               ],
-            });
-            
-            // Spoof languages
-            Object.defineProperty(navigator, 'languages', {
-               get: () => ['en-US', 'en'],
-            });
-            
-            // Spoof platform
-            Object.defineProperty(navigator, 'platform', {
-               get: () => 'Win32',
-            });
-            
-            // Remove evidence of automation
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
-            delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
-         """)
+         # Execute basic stealth BEFORE selenium-stealth
+         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
          
-         # Additional CDP commands for Firefox (if available)
-         try:
-            # These help mask automation in newer Firefox versions
-            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-               'userAgent': user_agent,
-               'platform': 'Win32'
-            })
-         except:
-            pass  # CDP not available in all Firefox versions
-         
-         type_text("✅ Browser setup complete with enhanced anti-bot-detection")
-         type_text("")
+         # Apply stealth mode
+         stealth(self.driver,
+               languages=["en-US", "en"],
+               vendor="Apple Computer, Inc.",
+               platform="MacIntel",
+               webgl_vendor="Apple",
+               renderer="Apple M4 Pro",
+            fix_hairline=True)
          
       except WebDriverException as e:
          type_text(f"🚫 Error setting up Firefox driver: {e}")
+         type_text("💡 Tip: Try closing all Firefox instances and run again")
          raise
+   
+   def setup_driver(self):
+      # create ChromeOptions object
+      options = webdriver.ChromeOptions()
+      
+      # Stealth arguments BEFORE creating driver
+      options.add_argument("--disable-blink-features=AutomationControlled")
+      options.add_experimental_option("excludeSwitches", ["enable-automation"])
+      options.add_experimental_option('useAutomationExtension', False)
+      
+      # Set up WebDriver
+      self.driver = webdriver.Chrome(options=options)
+      
+      # Execute basic stealth BEFORE selenium-stealth
+      self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+      
+      # Apply stealth mode
+      stealth(self.driver,
+            languages=["en-US", "en"],
+            vendor="Apple Computer, Inc.",
+            platform="MacIntel",
+            webgl_vendor="Apple",
+            renderer="Apple M4 Pro",
+            fix_hairline=True)
+
+   # NEW: Add this method to test stealth effectiveness
+   def test_stealth(self):
+      """Test if WebDriver is properly hidden"""
+      try:
+         self.driver.get("https://bot.sannysoft.com")
+         time.sleep(3)
+         
+         # Check what the page detects
+         result = self.driver.execute_script("""
+            return {
+               webdriver: navigator.webdriver,
+               userAgent: navigator.userAgent,
+               platform: navigator.platform,
+               plugins: navigator.plugins.length
+            };
+         """)
+         
+         type_text("🧪 Stealth Test Results:")
+         type_text(f"   WebDriver: {result['webdriver']}")
+         type_text(f"   UserAgent: {result['userAgent']}")
+         type_text(f"   Platform: {result['platform']}")
+         type_text(f"   Plugins: {result['plugins']}")
+         
+         if result['webdriver'] is None or result['webdriver'] is False:
+            type_text("   ✅ WebDriver successfully hidden!")
+            return True
+         else:
+            type_text("   ❌ WebDriver still detectable")
+            return False
+      
+      except Exception as e:
+         type_text(f"🚫 Stealth test failed: {e}")
    
    # START - Stealth
    def human_mouse_movement(self, start_element, end_element):
@@ -350,23 +374,38 @@ class ApplyBot:
       """Print out XPath hit statistics for a specific domain or all domains"""
       stats = self._load_xpath_stats_from_file()
       
+      # ✅ Add type safety check
+      if not isinstance(stats, dict):
+         type_text("⚠️ No XPath statistics available or file is corrupted")
+         return
+      
       type_text("XPATH HIT STATISTICS")
       
       domains_to_show = [domain] if domain else stats.keys()
       
       for domain_name in domains_to_show:
          if domain_name in stats:
-            type_text(f"\n--- {domain_name} ---")
-            domain_stats = stats[domain_name]
-            
-            for element_name, xpaths in domain_stats.items():
-               type_text(f"\n{element_name}:")
+               type_text(f"\n--- {domain_name} ---")
+               domain_stats = stats[domain_name]
                
-               # Sort by count descending
-               sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
-               
-               for xpath_string, data in sorted_xpaths:
-                  type_text(f"  {data['count']} hits: {xpath_string}")
+               # ✅ Additional safety check for domain_stats
+               if not isinstance(domain_stats, dict):
+                  type_text("   Invalid domain statistics format")
+                  continue
+                  
+               for element_name, xpaths in domain_stats.items():
+                  type_text(f"\n{element_name}:")
+                  
+                  # ✅ Safety check for xpaths
+                  if not isinstance(xpaths, dict):
+                     type_text("   Invalid XPaths format")
+                     continue
+                  
+                  # Sort by count descending
+                  sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+                  
+                  for xpath_string, data in sorted_xpaths:
+                     type_text(f"  {data['count']} hits: {xpath_string}")
          else:
                type_text(f"\nNo statistics found for domain: {domain_name}")
    
@@ -395,25 +434,25 @@ class ApplyBot:
       try:
          # Check if file exists and has content
          if not os.path.exists(filename) or os.path.getsize(filename) == 0:
-               return {}
+            return {}  # ✅ Return empty dict instead of string
          
          with open(filename, 'r') as f:
-               data = json.load(f)
+            data = json.load(f)
                
-         # Ensure it's a dictionary
+         # ✅ Ensure it's a dictionary, return empty dict if not
          if isinstance(data, dict):
-               return data
+            return data
          else:
-               type_text(f"⚠️ WARNING | XPath stats file contains invalid data type: {type(data)}")
-               return {}
+            type_text(f"⚠️ WARNING | XPath stats file contains invalid data type: {type(data)}")
+            return {}  # ✅ Return empty dict instead of the invalid data
                
       except json.JSONDecodeError:
          type_text(f"⚠️ WARNING | XPath stats file contains invalid JSON, resetting to empty")
-         return {}
+         return {}  # ✅ Return empty dict on JSON error
       except Exception as e:
          type_text(f"🚫 ERROR | _load_xpath_stats_from_file | Error loading XPath statistics from file: {e}")
-         return {}
-   
+         return {}  # ✅ Return empty dict on any other error
+
    def _save_xpath_stats_to_file(self, stats, filename="xpath_stats.json"):
       """Internal method to save statistics to file"""
       try:
@@ -431,33 +470,30 @@ class ApplyBot:
          type_text("Critical Element Scraping Failures: " + str(self.critical_element_scrape_fails)) # Number of times where a critical scraping element failed to be scraped
          type_text("Non-Critical Element Scraping Failures: " + str(self.non_critical_element_scrape_fails)) # Number of times where a non-critical scraping element failed to be scraped
    
-   def get_domain_statistics_summary(self):
-      """Print a summary of statistics by domain"""
+   def get_optimized_xpaths(self, domain=None):
+      """Get optimized XPath lists based on hit statistics for a specific domain or all domains"""
       stats = self._load_xpath_stats_from_file()
+      optimized = {}
       
-      type_text("DOMAIN STATISTICS SUMMARY")
+      # ✅ Add type safety check
+      if not isinstance(stats, dict):
+         type_text(f"⚠️ WARNING | get_optimized_xpaths | stats is not a dictionary: {type(stats)}")
+         return optimized
       
-      for domain_name, domain_stats in stats.items():
-         total_hits = 0
-         element_count = len(domain_stats)
-         
-         for element_name, xpaths in domain_stats.items():
-               for xpath_data in xpaths.values():
-                  total_hits += xpath_data['count']
-         
-         type_text(f"\n{domain_name}:")
-         type_text(f"  Elements tracked: {element_count}")
-         type_text(f"  Total hits: {total_hits}")
-         
-         # Show top 3 elements by hit count
-         element_totals = []
-         for element_name, xpaths in domain_stats.items():
-               element_hits = sum(data['count'] for data in xpaths.values())
-               element_totals.append((element_name, element_hits))
-         
-         element_totals.sort(key=lambda x: x[1], reverse=True)
-         for element_name, hits in element_totals[:3]:
-               type_text(f"  {element_name}: {hits} hits")
+      if domain:
+         # Get optimized XPaths for specific domain
+         if domain in stats:
+               domain_stats = stats[domain]
+               # Additional safety check for domain_stats
+               if isinstance(domain_stats, dict):
+                  for element_name, xpaths in domain_stats.items():
+                     # ✅ Add safety check for xpaths
+                     if not isinstance(xpaths, dict):
+                           continue
+                     # Sort by hit count descending
+                     sorted_xpaths = sorted(xpaths.items(), key=lambda x: x[1]['count'], reverse=True)
+                     # Create optimized list - just the XPath strings in order of most successful
+                     optimized[element_name] = [xpath_string for xpath_string, data in sorted_xpaths]
    
    def get_security_clearance_statistics(self):
       type_text("SECURITY CLEARANCE STATISTICS")
@@ -634,8 +670,19 @@ class ApplyBot:
                type_text("")
                type_text("Press Enter AFTER you have successfully bypassed the captcha...")
                input("") # Waits for user input
-            if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
-               return "closed"
+               
+               time.sleep(3)
+               WebDriverWait(self.driver, 10).until(
+                     lambda driver: driver.execute_script("return document.readyState") == "complete"
+               )
+               
+               # RE-CHECK for captcha after user input
+               if self.search_terms_in_page(["cloudflare", "captcha"]):
+                     type_text("🚫 Captcha still detected! Skipping this job...")
+                     return None
+            # TODO: Figure out why the hell is this always ends up being true???
+            # if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
+            #    return "closed"
             if self.search_terms_in_page(["Easy Apply", "Apply Now"]): # if the job is an easy apply
                is_easy_apply = True
             # Arrays of XPaths for each field
@@ -704,8 +751,6 @@ class ApplyBot:
                # Location-specific text patterns
                "//div[contains(text(), ',') and string-length(normalize-space(text())) > 3]",
                "//div[contains(text(), 'CA') or contains(text(), 'NY') or contains(text(), 'TX') or contains(text(), 'FL') or contains(text(), 'IL') or contains(text(), 'PA') or contains(text(), 'OH') or contains(text(), 'GA') or contains(text(), 'NC') or contains(text(), 'MI') or contains(text(), 'NJ') or contains(text(), 'VA') or contains(text(), 'WA') or contains(text(), 'MA') or contains(text(), 'AZ') or contains(text(), 'CO') or contains(text(), 'TN')]",
-               "//div[matches(text(), '[A-Z][a-z]+,\\s*[A-Z]{2}')]",
-               "//div[matches(text(), '\\d{5}')]",
                # Generic location patterns
                "//div[contains(@class, 'location')]",
                "//div[contains(@class, 'companyLocation')]",
@@ -739,9 +784,6 @@ class ApplyBot:
                "//span[contains(text(), '$') and contains(text(), '-')]",
                
                # Regex patterns for precise salary formats
-               "//span[matches(text(), '\\$[0-9,]+ - \\$[0-9,]+ a year')]",
-               "//span[matches(text(), '\\$[0-9,]+ an hour')]",
-               "//span[matches(text(), '\\$[0-9,]+\\.?[0-9]*.*(hour|year|month|week|day)')]",
                
                # Proximity to other job elements (more contextual)
                "//div[@data-testid='inlineHeader-companyLocation']/following-sibling::div//span[contains(text(), '$')]",
@@ -1978,8 +2020,6 @@ class ApplyBot:
       type_text("")
       print_applybot_mascot_w_statistics() # Print the mascot with statistics text
       type_text("")
-      self.get_domain_statistics_summary()
-      type_text("")
       self.get_xpath_statistics()
       type_text("")
       self.get_element_scraping_statistics()
@@ -2467,6 +2507,16 @@ def type_text(text, delay=0.004):
 # STOP - Print functions
 
 
+# START - Auxillary functions
+input_received = False # Create a flag to track if input was received
+def timeout_close(apply_bot_instance):
+   global input_received
+   if not input_received:
+      type_text("\n⏰ Timeout reached (30 seconds). Closing ApplyBot...")
+      apply_bot_instance.close()
+      sys.exit(1)
+# STOP - Auxillary functions
+
 
 def main():
    parser = argparse.ArgumentParser(description='Scrape job information from links')
@@ -2510,6 +2560,40 @@ def main():
    # Initialize ApplyBot (will call setup_driver, which will open browser)
    ApplyBotInstance = ApplyBot(config=config, headless=args.headless)
    
+   type_text("Testing Stealth...")
+   stealth_outcome = ApplyBotInstance.test_stealth()
+   
+   if not stealth_outcome:
+      type_text(f"\n{'='*50}")
+      type_text("STEALTH FAILED!")
+      type_text("    It is not advisible to continue to job scraping when not in stealth mode. It can lead to your IP being flagged and accounts being locked.")
+      type_text("")
+      type_text("    NOTICE: ApplyBot will automatically close in 30 seconds if you do not respond.")
+      type_text("")
+      type_text("    Options:")
+      type_text("       Press ENTER/RETURN to close ApplyBot")
+      type_text("       Type 'continue' to continue")
+      # Start the timeout thread
+      timeout_thread = threading.Timer(30.0, timeout_close)
+      timeout_thread.daemon = True
+      timeout_thread.start()
+      
+      try:
+         user_input = input("Your choice: ").strip().lower()
+         input_received = True
+         timeout_thread.cancel()  # Cancel timeout since we got input
+         
+         if user_input != 'continue':
+            type_text("Closing ApplyBot...")
+            ApplyBotInstance.close()
+            return  # Exit the program
+      except:
+         input_received = True
+         timeout_thread.cancel()
+         type_text("No input received. Closing ApplyBot...")
+         ApplyBotInstance.close()
+         return
+   
    # Login manually if needed
    ApplyBotInstance.linkedin_login()
    
@@ -2533,12 +2617,12 @@ def main():
             # Scrape the job info
             job_info = ApplyBotInstance.scrape_job_info(link)
             
-            if job_info and job_info != "incompatible":  # ← CHECK FOR INCOMPATIBLE EXPLICITLY
+            if job_info and job_info != "incompatible" and job_info != "closed":  # ← CHECK FOR BOTH SPECIAL CASES
                writer.writerow(job_info)
                csvfile.flush()  # Ensure data is written immediately
                successful_scrapes += 1
                type_text(f"✅ Successfully scraped and saved")
-            elif job_info and job_info != "closed": # ← HANDLE CLOSED CASE
+            elif job_info == "closed": # ← HANDLE CLOSED CASE
                closed_listings += 1
                type_text(f"🚫 Job closed - skipping to next job listing")
             elif job_info == "incompatible":  # ← HANDLE INCOMPATIBLE CASE
@@ -2581,6 +2665,9 @@ def main():
    except Exception as e:
       type_text(f"\n{'='*50}") # Divider
       type_text(f"🚫 Unexpected error: {e}")
+      import traceback
+      type_text(f"🚫 Full traceback:")
+      traceback.print_exc()
       type_text("Press Enter to exit...")
       input()
    finally:
