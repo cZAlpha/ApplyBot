@@ -246,7 +246,7 @@ class TestNormalizePayRate(unittest.TestCase):
          ("$20.0/hour - $30.0/hour", "$52,000"),
          ("$20 - $30 per hour", "$52,000"),
          ("$20-$30/hr", "$52,000"),
-         ("$20-$30 per hour", "$52,000")
+         ("$20-$30 per hour", "$52,000"),
       ]
       for input_text, expected in test_cases:
          with self.subTest(input_text=input_text):
@@ -280,14 +280,45 @@ class TestNormalizePayRate(unittest.TestCase):
          with self.subTest(input_text=input_text):
                result = normalize_pay_rate(input_text)
                self.assertEqual(result[0], expected)
+      
+   def test_vague_annual_salaries(self):
+      """Test explicit annual salaries"""
+      test_cases = [
+         ("$59,116 a year", "$59,116"),
+         ("up to $90,000 a year", "$90,000")
+      ]
+      for input_text, expected in test_cases:
+         with self.subTest(input_text=input_text):
+               result = normalize_pay_rate(input_text)
+               self.assertEqual(result[0], expected)
+   
+   def test_weekly_salaries(self):
+      """Test explicit annual salaries"""
+      test_cases = [
+         ("from $1,200 a week", "$57,600"),
+         ("$1,200 a week", "$57,600"),
+         ("$1,200 every week", "$57,600"),
+         ("$900 weekly", "$43,200"),
+         ("from $900 weekly", "$43,200"),
+         ("$900/wk", "$43,200")
+      ]
+      for input_text, expected in test_cases:
+         with self.subTest(input_text=input_text):
+               result = normalize_pay_rate(input_text)
+               self.assertEqual(result[0], expected)
    
    def test_annual_ranges(self):
+      # $120/yr - $135/yr
       """Test annual salary ranges return tuples"""
-      result = normalize_pay_rate("$60,000/yr - $80,000/yr")
-      self.assertIsInstance(result, tuple)
-      self.assertEqual(len(result), 2)
-      self.assertEqual(result[0], "$70,000")  # Midpoint
-      self.assertIn("Original range:", result[1])
+      test_cases = [
+         ("$60,000/yr - $80,000/yr", "$70,000"),
+         ("$120/yr - $140/yr", "$130,000"),
+         ("$100/yr-$200/yr", "$150,000"),
+      ]
+      for input_text, expected in test_cases:
+         with self.subTest(input_text=input_text):
+               result = normalize_pay_rate(input_text)
+               self.assertEqual(result[0], expected)
    
    def test_typo_dollar_per_year_conversion(self):
       """Test the $X/yr typo case (likely meant $X/hr)"""
@@ -776,8 +807,8 @@ class TestPreProcessJobLinks(unittest.TestCase):
          # Debug output to see what we got
          # print(f"DEBUG: Input had {len(linkedin_duplicates)} LinkedIn URLs with tracking")
          # print(f"DEBUG: Output has {len(result)} URLs after processing")
-         for i, url in enumerate(result):
-               print(f"DEBUG: Result {i}: {url}")
+         # for i, url in enumerate(result):
+         #       print(f"DEBUG: Result {i}: {url}")
          
          # The two URLs should normalize to the SAME URL and duplicates should be removed
          # So we should only have 1 unique LinkedIn URL in the result

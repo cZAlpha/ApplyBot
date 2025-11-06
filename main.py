@@ -2326,13 +2326,22 @@ def normalize_pay_rate(pay_rate_text):
    range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*(?:/?\s*yr)?\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*(?:/?\s*yr)?'
    annual_range_match = re.search(range_pattern, text)
    if annual_range_match:
-      annual_low_str = annual_range_match.group(1).replace(',', '').replace('.', '')
-      annual_high_str = annual_range_match.group(2).replace(',', '').replace('.', '')
-      annual_low = int(annual_low_str)
-      annual_high = int(annual_high_str)
+      annual_low_str = annual_range_match.group(1).replace(',', '')
+      annual_high_str = annual_range_match.group(2).replace(',', '')
+      
+      # Check if these are likely K notation (small numbers that would be unreasonable as actual salaries)
+      annual_low = float(annual_low_str)
+      annual_high = float(annual_high_str)
+      
+      # If the numbers are small (likely K notation without the 'k')
+      if annual_low < 1000 and annual_high < 1000:
+         annual_low *= 1000
+         annual_high *= 1000
+      
       midpoint = (annual_low + annual_high) / 2
+      midpoint_rounded = round(midpoint)
       note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
-      return (f"${midpoint:,.0f}", note)
+      return (f"${midpoint_rounded:,.0f}", note)
    
    # Handle explicit annual salaries - improved pattern
    annual_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr', text)
@@ -2344,20 +2353,6 @@ def normalize_pay_rate(pay_rate_text):
       else:
          annual_salary = int(annual_salary_str)
       return (f"${annual_salary:,.0f}", text)
-   
-   # Handle annual ranges - improved detection
-   # Look for ranges with explicit separators
-   # Salary range -> salary midpoint
-   range_pattern = r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*yr'
-   annual_range_match = re.search(range_pattern, text)
-   if annual_range_match:
-      annual_low_str = annual_range_match.group(1).replace(',', '').replace('.', '')
-      annual_high_str = annual_range_match.group(2).replace(',', '').replace('.', '')
-      annual_low = int(annual_low_str)
-      annual_high = int(annual_high_str)
-      midpoint = (annual_low + annual_high) / 2
-      note = f"Original range: ${annual_low:,.0f}/yr - ${annual_high:,.0f}/yr"
-      return (f"${midpoint:,.0f}", note)
    
    # Handle simple annual ranges without /yr (like "$45,600 - $80,000")
    simple_range_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})+)\s*[-–—]\s*\$\s*(\d{1,3}(?:[,.]?\d{3})+)', text)
@@ -2390,6 +2385,37 @@ def normalize_pay_rate(pay_rate_text):
       annual_salary = float(starting_match.group(1).replace(',', '')) * 1000
       return (f"${annual_salary:,.0f}", text)
    
+   # Handle "X a year" format (e.g., "$59,116 a year - Full-time")
+   a_year_match = re.search(r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s+a\s+year', text)
+   if a_year_match:
+      annual_salary_str = a_year_match.group(1).replace(',', '')
+      annual_salary = float(annual_salary_str)
+      return (f"${annual_salary:,.0f}", text)
+   
+   # Handle "up to X a year" format (e.g., "up to $90,000 a year")
+   upto_year_match = re.search(r'up\s+to\s+\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s+a\s+year', text)
+   if upto_year_match:
+      annual_salary_str = upto_year_match.group(1).replace(',', '')
+      annual_salary = float(annual_salary_str)
+      return (f"${annual_salary:,.0f}", text)
+   
+   # Handle weekly rates (e.g., "from $1,200 a week", "$900 weekly", "$900/wk")
+   weekly_patterns = [
+      r'(?:from\s+)?\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s+a\s+week',
+      r'(?:from\s+)?\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s+every\s+week',
+      r'(?:from\s+)?\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s+weekly',
+      r'\$\s*(\d{1,3}(?:[,.]?\d{3})*(?:[.,]\d+)?)\s*/?\s*wk'
+   ]
+   
+   for pattern in weekly_patterns:
+      weekly_match = re.search(pattern, text)
+      if weekly_match:
+         weekly_rate = float(weekly_match.group(1).replace(',', ''))
+         # Use 48 weeks to account for unpaid time off (4 weeks)
+         annual_salary = weekly_rate * 48
+         annual_salary_rounded = round(annual_salary)
+         return (f"${annual_salary_rounded:,.0f}", text)
+      
    # If no patterns match but it's not "?", return original
    if text != "?":
       return (text, "Could not re-format pay rate.")
