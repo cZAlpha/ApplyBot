@@ -74,28 +74,28 @@
   "www.indeed.com": {
     "Job Title": {
       "//h1[@class='jobsearch-JobInfoHeader-title css-1b1jw74 e1tiznh50']/span": {
-        "count": 39
+        "count": 58
       }
     },
     "Employer": {
       "//div[@data-company-name='true']//a": {
-        "count": 38
+        "count": 56
       },
       "//div[contains(@class, 'eu4oa1w0')]//a": {
-        "count": 1
+        "count": 2
       }
     },
     "Location": {
       "//div[@data-testid='inlineHeader-companyLocation']/div": {
-        "count": 39
+        "count": 58
       }
     },
     "Pay Rate": {
       "//div[@id='salaryInfoAndJobType']/span[position()=1]": {
-        "count": 17
+        "count": 26
       },
       "//div[@id='salaryInfoAndJobType']//span[contains(text(), '$')]": {
-        "count": 19
+        "count": 28
       }
     }
   }

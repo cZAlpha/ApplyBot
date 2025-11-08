@@ -452,7 +452,7 @@ class ApplyBot:
       except Exception as e:
          type_text(f"🚫 ERROR | _load_xpath_stats_from_file | Error loading XPath statistics from file: {e}")
          return {}  # ✅ Return empty dict on any other error
-
+   
    def _save_xpath_stats_to_file(self, stats, filename="xpath_stats.json"):
       """Internal method to save statistics to file"""
       try:
@@ -683,7 +683,7 @@ class ApplyBot:
             # TODO: Figure out why the hell is this always ends up being true???
             # if self.search_terms_in_page(["job has expired", "the employer is not accepting applications", "not accepting applications"]):
             #    return "closed"
-            if self.search_terms_in_page(["Easy Apply", "Apply Now"]): # if the job is an easy apply
+            if self.search_terms_in_page(["easy apply", "apply now"]) and not self.search_terms_in_page(["apply on company site"]): # if the job is an easy apply
                is_easy_apply = True
             # Arrays of XPaths for each field
             job_title_xpaths = [
