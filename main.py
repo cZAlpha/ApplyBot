@@ -2589,6 +2589,7 @@ def main():
    type_text("Testing Stealth...")
    stealth_outcome = ApplyBotInstance.test_stealth()
    
+   # Handle user input when stealth fails
    if not stealth_outcome:
       type_text(f"\n{'='*50}")
       type_text("STEALTH FAILED!")
@@ -2620,8 +2621,14 @@ def main():
          ApplyBotInstance.close()
          return
    
-   # Login manually if needed
-   ApplyBotInstance.linkedin_login()
+   # Check if linkedin listings are in the input
+   linkedin_found = False
+   for link in cleaned_links:
+      if 'linkedin' in link:
+         linkedin_found = True
+   if linkedin_found:
+      # Login manually if needed
+      ApplyBotInstance.linkedin_login()
    
    # Prepare output CSV
    fieldnames = ['Job Title', 'Employer', 'Location', 'Pay Rate', 'Job Ad', 'Date Found', 'Notes', 'Security Clearance', 'Easy Apply']
